@@ -12,9 +12,10 @@ app.whenReady().then(() => {
   targetWin.loadURL('https://example.com');
 
   overlayWin = new BrowserWindow({
+    parent: targetWin,
     transparent: true,
     frame: false,
-    alwaysOnTop: true,
+    alwaysOnTop: false,
     hasShadow: false,
     focusable: false,
     skipTaskbar: true,
@@ -40,7 +41,4 @@ app.whenReady().then(() => {
   // Keep in sync
   targetWin.on('move', syncOverlay);
   targetWin.on('resize', syncOverlay);
-  targetWin.on('show', () => overlayWin.show());
-  targetWin.on('hide', () => overlayWin.hide());
-  targetWin.on('closed', () => overlayWin.close());
 });
