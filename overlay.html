@@ -12,23 +12,18 @@
     #canvas {
       width: 100%;
       height: 100%;
-      /* SVG filter applied here — GPU-accelerated color matrix */
       filter: url(#colorMatrix);
     }
   </style>
 </head>
 <body>
 
-  <!-- SVG filter: feColorMatrix applies our 5x5 matrix to every pixel -->
-  <!-- This runs on the GPU, same idea as the Windows Magnification API -->
-  <svg style="position:absolute; width:0; height:0;">
+  <!-- SVG feColorMatrix: GPU-accelerated color transform on the canvas -->
+  <svg style="position:absolute;width:0;height:0;">
     <defs>
       <filter id="colorMatrix" color-interpolation-filters="sRGB">
         <feColorMatrix type="matrix" id="matrixFilter"
-          values="1 0 0 0 0
-                  0 1 0 0 0
-                  0 0 1 0 0
-                  0 0 0 1 0" />
+          values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" />
       </filter>
     </defs>
   </svg>
@@ -41,70 +36,37 @@
     const ctx = canvas.getContext('2d');
     const matrixFilter = document.getElementById('matrixFilter');
 
-    let fullscreenMode = false;
-    let currentWindowInfo = null;
-    let captureInterval = null;
+    let windowInfo = null;
+    let captureTimer = null;
 
-    // ============================================================
-    // Receive color matrix from main.js (via vision-api)
-    // ============================================================
-    ipcRenderer.on('apply-matrix', (event, matrix) => {
-      // matrix is a 25-element flat array (5x5, row-major)
-      // SVG feColorMatrix uses 4 rows × 5 columns = 20 values
-      // We take the first 4 rows (indices 0-19)
-      //
-      // Our convention:  R' = m[0]*R + m[1]*G + m[2]*B + m[3]*A + m[4]*offset
-      // SVG convention:  R' = a00*R + a01*G + a02*B + a03*A + a04
-      //
-      // They match! a04 maps to m[4] (the offset column). SVG offsets are 0-1 range. ✓
-
-      const svgValues = [
-        matrix[0],  matrix[1],  matrix[2],  matrix[3],  matrix[4],   // R row
-        matrix[5],  matrix[6],  matrix[7],  matrix[8],  matrix[9],   // G row
-        matrix[10], matrix[11], matrix[12], matrix[13], matrix[14],  // B row
-        matrix[15], matrix[16], matrix[17], matrix[18], matrix[19],  // A row
-      ].map(v => v.toFixed(6)).join(' ');
-
-      matrixFilter.setAttribute('values', svgValues);
+    // ── Receive color matrix from vision-api ──
+    ipcRenderer.on('apply-matrix', (_, matrix) => {
+      // 5x5 row-major → SVG uses first 4 rows (20 values)
+      const vals = matrix.slice(0, 20).map(v => v.toFixed(6)).join(' ');
+      matrixFilter.setAttribute('values', vals);
     });
 
-    // ============================================================
-    // Full-screen capture mode
-    // ============================================================
-    ipcRenderer.on('start-fullscreen', (event, { width, height }) => {
-      fullscreenMode = true;
-      canvas.width = width;
-      canvas.height = height;
-      startCapture();
-    });
-
-    // Legacy: per-window mode
-    ipcRenderer.on('window-info', (event, info) => {
-      currentWindowInfo = info;
+    // ── Per-window capture mode ──
+    ipcRenderer.on('start-window-capture', (_, info) => {
+      windowInfo = info;
       canvas.width = info.width;
       canvas.height = info.height;
-      startCapture();
+
+      if (captureTimer) clearInterval(captureTimer);
+      // 15 FPS — good enough for color overlay, much lighter than 30
+      captureTimer = setInterval(() => {
+        if (windowInfo) {
+          ipcRenderer.send('take-screenshot', windowInfo);
+        }
+      }, 66);
     });
 
-    function startCapture() {
-      if (captureInterval) clearInterval(captureInterval);
-
-      captureInterval = setInterval(() => {
-        if (fullscreenMode) {
-          ipcRenderer.send('take-screenshot-fullscreen');
-        } else if (currentWindowInfo) {
-          ipcRenderer.send('take-screenshot', currentWindowInfo);
-        }
-      }, 33); // ~30 FPS
-    }
-
-    ipcRenderer.on('screenshot-ready', (event, imageDataUrl) => {
+    ipcRenderer.on('screenshot-ready', (_, dataUrl) => {
       const img = new Image();
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      };
-      img.src = imageDataUrl;
+      img.onload = () => ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      img.src = dataUrl;
     });
   </script>
 </body>
 </html>
+

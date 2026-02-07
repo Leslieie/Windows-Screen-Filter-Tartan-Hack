@@ -1,109 +1,95 @@
 // src/shared/vision-api.js — THE BRIDGE
 //
-// This connects main.js (Electron) to the vision modules.
 // Two backends:
-//   1. "native"  — Windows Magnification API (GPU, zero CPU cost, full-screen only)
-//   2. "overlay" — Screenshot + SVG feColorMatrix on canvas (cross-platform, works NOW)
+//   1. NATIVE (Windows) — MagSetFullscreenColorEffect on GPU. Zero lag.
+//      No overlay window needed. Matrix applied by DWM compositor.
 //
-// main.js calls these functions. Vision side owns everything behind them.
+//   2. OVERLAY (fallback) — Screenshot + SVG feColorMatrix.
+//      Used on non-Windows or when native addon isn't built.
+//      Per-window only (full-screen is too expensive).
+//
+// main.js doesn't care which backend — it calls the same functions.
 
 const { PALETTES, applyIntensity, getPaletteById } = require('./palettes/index');
-const { transposeMatrix, IDENTITY, compose } = require('./matrix-ops');
+const { transposeMatrix, IDENTITY } = require('./matrix-ops');
 const { TransitionEngine, Easings } = require('./transition-engine');
 
-// --- Try to load native addon (Windows only) ---
-let nativeAddon = null;
+// ── Try to load native addon ────────────────────────────────────
+let native = null;
 try {
-  nativeAddon = require('../../build/Release/module.node');
-  if (nativeAddon && nativeAddon.init && nativeAddon.init()) {
-    console.log('[VisionAPI] Native Magnification API initialized');
-  } else {
-    nativeAddon = null;
+  native = require('../../build/Release/screentint_native.node');
+} catch (e1) {
+  try {
+    // electron-rebuild puts it here sometimes
+    native = require('../../build/Release/screentint_native');
+  } catch (e2) {
+    native = null;
   }
-} catch (e) {
-  // Expected on non-Windows or if addon isn't built yet
-  nativeAddon = null;
 }
 
-// --- State ---
+let nativeReady = false;
+if (native && native.isAvailable && native.isAvailable()) {
+  try {
+    nativeReady = native.init();
+    if (nativeReady) console.log('[Vision] ✓ Native Magnification API ready (zero-lag GPU mode)');
+  } catch (e) {
+    console.warn('[Vision] Native init failed:', e.message);
+    nativeReady = false;
+  }
+}
+
+if (!nativeReady) {
+  console.log('[Vision] Native not available — using overlay fallback');
+}
+
+// ── State ───────────────────────────────────────────────────────
 const transition = new TransitionEngine();
 let currentMatrix = [...IDENTITY];
-let onMatrixChange = null; // callback set by main.js for overlay mode
+let onMatrixChange = null; // callback for overlay mode
 
-// --- Internal: apply a matrix to the screen ---
+// ── Apply matrix to screen ──────────────────────────────────────
 function applyToScreen(matrix) {
   currentMatrix = [...matrix];
 
-  if (nativeAddon) {
-    // Native path: transpose to row-vector convention and send to GPU
+  if (nativeReady) {
+    // Native: transpose to row-vector convention, send to GPU
     const transposed = transposeMatrix(matrix);
-    nativeAddon.applyMatrix(transposed);
+    native.applyMatrix(transposed);
   }
 
-  // Always fire callback (for overlay mode or UI preview)
-  if (onMatrixChange) {
-    onMatrixChange(matrix);
-  }
+  // Always fire callback (overlay mode uses this)
+  if (onMatrixChange) onMatrixChange(matrix);
 }
 
-// ============================================================
-// PUBLIC API — what main.js calls
-// ============================================================
+// ═════════════════════════════════════════════════════════════════
+// PUBLIC API
+// ═════════════════════════════════════════════════════════════════
 
-/**
- * Set a callback for when the matrix changes.
- * In overlay mode, this sends the matrix to the overlay window.
- */
-function setOnMatrixChange(callback) {
-  onMatrixChange = callback;
-}
+function setOnMatrixChange(cb) { onMatrixChange = cb; }
 
-/**
- * Apply a named palette at given intensity.
- * @param {string} paletteId - e.g. 'dark_mode', 'night_filter'
- * @param {number} intensity - 0.0 (off) to 1.0 (full)
- * @returns {boolean}
- */
 function applyPalette(paletteId, intensity = 1.0) {
   const palette = getPaletteById(paletteId);
   if (!palette) return false;
-
-  const matrix = applyIntensity(palette.matrix, intensity);
-  applyToScreen(matrix);
+  applyToScreen(applyIntensity(palette.matrix, intensity));
   return true;
 }
 
-/**
- * Apply a raw 5x5 matrix directly.
- * @param {number[]} matrix - 25-element flat array
- * @returns {boolean}
- */
 function applyRawMatrix(matrix) {
   if (!Array.isArray(matrix) || matrix.length !== 25) return false;
   applyToScreen(matrix);
   return true;
 }
 
-/**
- * Remove all effects.
- */
 function reset() {
   transition.cancel();
   applyToScreen([...IDENTITY]);
-  if (nativeAddon) nativeAddon.reset();
+  if (nativeReady) native.reset();
   return true;
 }
 
-/**
- * Smoothly transition to a target palette.
- * @param {string} paletteId
- * @param {number} intensity
- * @param {number} durationMs - transition time in ms (default 400)
- */
 function transitionTo(paletteId, intensity = 1.0, durationMs = 400) {
   const palette = getPaletteById(paletteId);
   if (!palette) return;
-
   const target = applyIntensity(palette.matrix, intensity);
 
   transition.animate({
@@ -111,45 +97,42 @@ function transitionTo(paletteId, intensity = 1.0, durationMs = 400) {
     to: target,
     duration: durationMs,
     easing: Easings.easeInOutCubic,
-    onFrame: (matrix) => applyToScreen(matrix),
-    onComplete: () => console.log(`[VisionAPI] Transitioned to ${paletteId}`),
+    onFrame: (m) => applyToScreen(m),
   });
 }
 
-/**
- * Get all available palettes (for UI to display).
- */
+function transitionToRaw(matrix, durationMs = 400) {
+  if (!Array.isArray(matrix) || matrix.length !== 25) return;
+  transition.animate({
+    from: transition.getCurrentMatrix(),
+    to: matrix,
+    duration: durationMs,
+    easing: Easings.easeInOutCubic,
+    onFrame: (m) => applyToScreen(m),
+  });
+}
+
 function getPalettes() {
   return PALETTES.map(p => ({
-    id: p.id,
-    name: p.name,
-    description: p.description,
-    icon: p.icon,
-    category: p.category,
-    previewColors: p.previewColors,
+    id: p.id, name: p.name, description: p.description,
+    icon: p.icon, category: p.category, previewColors: p.previewColors,
   }));
 }
 
-/**
- * Get the current active matrix.
- */
-function getCurrentMatrix() {
-  return [...currentMatrix];
-}
+function getCurrentMatrix() { return [...currentMatrix]; }
 
-/**
- * Check if native backend is available.
- */
-function isNativeAvailable() {
-  return nativeAddon !== null;
-}
+function isNativeAvailable() { return nativeReady; }
 
-/**
- * Cleanup on app exit.
- */
+/** Which backend is active */
+function getBackend() { return nativeReady ? 'native' : 'overlay'; }
+
 function shutdown() {
   transition.cancel();
-  if (nativeAddon) nativeAddon.reset();
+  if (nativeReady) {
+    native.reset();
+    native.shutdown();
+    nativeReady = false;
+  }
   currentMatrix = [...IDENTITY];
 }
 
@@ -159,8 +142,10 @@ module.exports = {
   applyRawMatrix,
   reset,
   transitionTo,
+  transitionToRaw,
   getPalettes,
   getCurrentMatrix,
   isNativeAvailable,
+  getBackend,
   shutdown,
 };

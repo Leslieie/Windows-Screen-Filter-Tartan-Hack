@@ -1,147 +1,187 @@
 const { app, BrowserWindow, desktopCapturer, ipcMain, screen } = require('electron');
+const windowManager = require('node-window-manager').windowManager;
 const visionAPI = require('./src/shared/vision-api');
 
-let overlayWin;
-let pickerWin;
+let pickerWin = null;
+let overlayWin = null;
+let trackingInterval = null;
 
-// ============================================================
-// Wire vision-api → overlay: when matrix changes, push to overlay
-// ============================================================
+// ─────────────────────────────────────────────────────────────────
+// Wire vision-api → overlay (only used in overlay/fallback mode)
+// In native mode, the GPU does everything — no overlay needed.
+// ─────────────────────────────────────────────────────────────────
 visionAPI.setOnMatrixChange((matrix) => {
   if (overlayWin && !overlayWin.isDestroyed()) {
     overlayWin.webContents.send('apply-matrix', matrix);
   }
 });
 
-// ============================================================
-// IPC: Palette control (called from picker UI)
-// ============================================================
+// ─────────────────────────────────────────────────────────────────
+// IPC: Palette control
+// ─────────────────────────────────────────────────────────────────
 
-ipcMain.handle('get-palettes', () => {
-  return visionAPI.getPalettes();
-});
+ipcMain.handle('get-palettes', () => visionAPI.getPalettes());
+ipcMain.handle('get-backend', () => visionAPI.getBackend());
 
-ipcMain.on('apply-palette', (event, { paletteId, intensity }) => {
+ipcMain.on('apply-palette', (_, { paletteId, intensity }) => {
   visionAPI.applyPalette(paletteId, intensity ?? 1.0);
 });
 
-ipcMain.on('transition-palette', (event, { paletteId, intensity, duration }) => {
+ipcMain.on('transition-palette', (_, { paletteId, intensity, duration }) => {
   visionAPI.transitionTo(paletteId, intensity ?? 1.0, duration ?? 400);
 });
 
-ipcMain.on('apply-raw-matrix', (event, matrix) => {
+ipcMain.on('apply-raw-matrix', (_, matrix) => {
   visionAPI.applyRawMatrix(matrix);
 });
 
 ipcMain.on('reset-palette', () => {
   visionAPI.reset();
+  destroyOverlay();
 });
 
-// ============================================================
-// IPC: Screenshot capture for overlay mode
-// ============================================================
+// ─────────────────────────────────────────────────────────────────
+// IPC: Native mode — just apply, no overlay needed
+// ─────────────────────────────────────────────────────────────────
 
-ipcMain.on('take-screenshot-fullscreen', async (event) => {
-  const sources = await desktopCapturer.getSources({
-    types: ['screen'],
-    thumbnailSize: { width: 1920, height: 1080 }
-  });
-  if (sources.length > 0) {
-    event.reply('screenshot-ready', sources[0].thumbnail.toDataURL());
-  }
+ipcMain.on('activate-native', (_, { paletteId, intensity }) => {
+  // In native mode, just apply the palette. The DWM handles the rest.
+  visionAPI.transitionTo(paletteId, intensity ?? 1.0, 400);
 });
 
-ipcMain.on('take-screenshot', async (event, windowInfo) => {
-  const sources = await desktopCapturer.getSources({
-    types: ['window'],
-    thumbnailSize: { width: 1920, height: 1080 }
-  });
-  const targetSource = sources.find(s => s.name === windowInfo.name);
-  if (targetSource) {
-    event.reply('screenshot-ready', targetSource.thumbnail.toDataURL());
-  }
-});
+// ─────────────────────────────────────────────────────────────────
+// IPC: Overlay mode — per-window targeting (fallback)
+// ─────────────────────────────────────────────────────────────────
 
 ipcMain.on('get-sources', async (event) => {
   const sources = await desktopCapturer.getSources({ types: ['window'] });
   event.reply('sources-list', sources);
 });
 
-// ============================================================
+ipcMain.on('start-window-overlay', (_, windowInfo) => {
+  createWindowOverlay(windowInfo);
+});
+
+// Per-window screenshot (only the target window, much smaller data)
+ipcMain.on('take-screenshot', async (event, windowInfo) => {
+  const sources = await desktopCapturer.getSources({
+    types: ['window'],
+    thumbnailSize: { width: windowInfo.width || 1280, height: windowInfo.height || 720 }
+  });
+  const target = sources.find(s => s.name === windowInfo.name);
+  if (target) {
+    event.reply('screenshot-ready', target.thumbnail.toDataURL());
+  }
+});
+
+ipcMain.on('stop-overlay', () => {
+  visionAPI.reset();
+  destroyOverlay();
+});
+
+// ─────────────────────────────────────────────────────────────────
 // Window creation
-// ============================================================
+// ─────────────────────────────────────────────────────────────────
 
 app.whenReady().then(() => {
   pickerWin = new BrowserWindow({
-    width: 520,
-    height: 650,
+    width: 540,
+    height: 700,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false
-    }
+      contextIsolation: false,
+    },
   });
   pickerWin.loadFile('picker.html');
 });
 
 /**
- * Full-screen overlay: captures entire screen, applies color matrix via SVG filter.
+ * Per-window overlay: positioned exactly over the target window.
+ * Only captures that one window → much less data than full screen.
  */
-function createFullScreenOverlay() {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width, height } = primaryDisplay.size;
+function createWindowOverlay(windowInfo) {
+  destroyOverlay(); // clean up any existing
+
+  // Get actual window bounds via node-window-manager
+  const windows = windowManager.getWindows();
+  const targetWindow = windows.find(w => w.getTitle() === windowInfo.name);
+
+  let bounds = { x: 100, y: 100, width: 1000, height: 700 };
+  if (targetWindow) {
+    const wb = targetWindow.getBounds();
+    bounds = { x: wb.x, y: wb.y, width: wb.width, height: wb.height };
+  }
 
   overlayWin = new BrowserWindow({
-    x: 0,
-    y: 0,
-    width,
-    height,
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     hasShadow: false,
     focusable: false,
     skipTaskbar: true,
-    fullscreen: true,
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false
-    }
+      contextIsolation: false,
+    },
   });
 
   overlayWin.loadFile('overlay.html');
+  overlayWin.setIgnoreMouseEvents(true, { forward: true });
 
   overlayWin.webContents.on('did-finish-load', () => {
-    overlayWin.webContents.send('start-fullscreen', { width, height });
-
-    // Push current matrix if one is already active
-    const current = visionAPI.getCurrentMatrix();
-    const isIdentity = current.every((v, i) => {
-      const row = Math.floor(i / 5), col = i % 5;
-      return Math.abs(v - (row === col ? 1 : 0)) < 0.001;
+    overlayWin.webContents.send('start-window-capture', {
+      ...windowInfo,
+      width: bounds.width,
+      height: bounds.height,
     });
-    if (!isIdentity) {
-      overlayWin.webContents.send('apply-matrix', current);
-    }
+
+    // Push current matrix
+    const current = visionAPI.getCurrentMatrix();
+    overlayWin.webContents.send('apply-matrix', current);
   });
 
-  overlayWin.setIgnoreMouseEvents(true, { forward: true });
+  // Track the target window's position
+  if (targetWindow) {
+    trackingInterval = setInterval(() => {
+      if (!overlayWin || overlayWin.isDestroyed()) {
+        clearInterval(trackingInterval);
+        return;
+      }
+      try {
+        const nb = targetWindow.getBounds();
+        overlayWin.setBounds({ x: nb.x, y: nb.y, width: nb.width, height: nb.height });
+      } catch (e) {
+        // Window may have been closed
+        destroyOverlay();
+      }
+    }, 200);
+  }
 }
 
-ipcMain.on('start-fullscreen-mode', () => {
-  if (!overlayWin || overlayWin.isDestroyed()) {
-    createFullScreenOverlay();
+function destroyOverlay() {
+  if (trackingInterval) {
+    clearInterval(trackingInterval);
+    trackingInterval = null;
   }
-});
-
-ipcMain.on('stop-overlay', () => {
-  visionAPI.reset();
   if (overlayWin && !overlayWin.isDestroyed()) {
     overlayWin.close();
-    overlayWin = null;
   }
+  overlayWin = null;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Cleanup
+// ─────────────────────────────────────────────────────────────────
+
+app.on('before-quit', () => {
+  visionAPI.shutdown();
+  destroyOverlay();
 });
 
-app.on('before-quit', () => visionAPI.shutdown());
 app.on('window-all-closed', () => {
   visionAPI.shutdown();
   app.quit();
