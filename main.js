@@ -3,6 +3,7 @@ const windowManager = require('node-window-manager').windowManager;
 
 let overlayWin;
 let pickerWin;
+let trackingInterval = null;
 
 // Handle request for window list
 ipcMain.on('get-sources', async (event) => {
@@ -13,7 +14,7 @@ ipcMain.on('get-sources', async (event) => {
 // Handle window selection
 ipcMain.on('window-selected', (event, windowInfo) => {
   createOverlay(windowInfo);
-  pickerWin.close();
+  // pickerWin.close();
 });
 
 // handle screenshots
@@ -43,9 +44,29 @@ app.whenReady().then(() => {
   });
 
   pickerWin.loadFile('picker.html');
+  
+  // Close overlay when picker window closes
+  pickerWin.on('closed', () => {
+    if (trackingInterval) {
+      clearInterval(trackingInterval);
+      trackingInterval = null;
+    }
+    
+    if (overlayWin && !overlayWin.isDestroyed()) {
+      overlayWin.close();
+    }
+    
+    pickerWin = null;
+  });
 });
 
 function createOverlay(windowInfo) {
+  // Clean up any existing interval
+  if (trackingInterval) {
+    clearInterval(trackingInterval);
+    trackingInterval = null;
+  }
+  
   // Get actual window bounds
   const windows = windowManager.getWindows();
   const targetWindow = windows.find(w => w.getTitle() === windowInfo.name);
@@ -87,11 +108,21 @@ function createOverlay(windowInfo) {
 
   overlayWin.setIgnoreMouseEvents(true, { forward: true });
   
+  // Clean up interval when overlay closes
+  overlayWin.on('closed', () => {
+    if (trackingInterval) {
+      clearInterval(trackingInterval);
+      trackingInterval = null;
+    }
+    overlayWin = null;
+  });
+  
   // Track window movement
   if (targetWindow) {
-    const interval = setInterval(() => {
+    trackingInterval = setInterval(() => {
       if (!overlayWin || overlayWin.isDestroyed()) {
-        clearInterval(interval);
+        clearInterval(trackingInterval);
+        trackingInterval = null;
         return;
       }
       
