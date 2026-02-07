@@ -1,17 +1,3 @@
-// src/shared/palettes/dark-mode.js
-// Dark Mode Matrix Builder
-//
-// Strategy: The core is INVERT + HUE-ROTATE(180°).
-// - Inversion flips brightness (white→black, black→white) 
-// - But it also flips colors (blue→yellow, red→cyan) 
-// - Hue-rotating 180° undoes the color flip 
-//
-// Then layer on adjustments:
-// - Reduce contrast slightly (pure inversion is too harsh)
-// - Boost saturation (the process desaturates colors)
-// - Add warm tint (humans prefer warm darks over cold blue-gray)
-// - Adjust brightness to hit target dark-background luminance
-
 const {
   compose, invertMatrix, saturationMatrix, contrastMatrix,
   tintMatrix, brightnessMatrix, hueRotateMatrix,

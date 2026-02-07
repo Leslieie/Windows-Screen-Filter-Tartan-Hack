@@ -1,9 +1,4 @@
-// src/shared/matrix-test-harness.js
-// Visual Quality Checker
-//
-// Usage:
-//   node src/shared/matrix-test-harness.js          → test dark mode
-//   node src/shared/matrix-test-harness.js --all    → test all palettes
+
 
 const TEST_COLORS = {
   white:     [1.00, 1.00, 1.00],
