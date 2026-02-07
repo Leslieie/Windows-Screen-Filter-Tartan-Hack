@@ -21,19 +21,40 @@
     }
     button:hover { background: #e8e8e8; }
     #windows { margin-top: 20px; }
+
+    .filter_button {
+      background-color: blue;
+
+    }
+
+    .filter_button.active {
+      background-color: green;
+      color: white;
+    }
+
   </style>
 </head>
 <body>
   <script>
-    function send_filter_type(type) {
+    function send_filter_type(button, type) {
+      // Remove 'active' class from all buttons
+      const buttons = document.querySelectorAll('.filter_button');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      
+      // Add 'active' class to clicked button
+      button.classList.add('active');
+      
+      // Call your original function
+      send_filter_type(filterType);
+
       ipcRenderer.send("filter_select", type);
     }
   </script>
   <h2>Select Overlay Style</h2>
   <div>
-    <button onclick="send_filter_type('Dark')">Dark Mode</button>
-    <button onclick="send_filter_type('Pastel')">Pastel</button>
-    <button onclick="send_filter_type('Neon')">Neon</button>
+    <button class="filter_button" onclick="send_filter_type(this, 'Dark')">Dark Mode</button>
+    <button class="filter_button" onclick="send_filter_type(this, 'Pastel')">Pastel</button>
+    <button class="filter_button" onclick="send_filter_type(this, 'Neon')">Neon</button>
   </div>
 
   <h2>Select Window to Overlay</h2>
