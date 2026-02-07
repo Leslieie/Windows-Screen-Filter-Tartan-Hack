@@ -1,78 +1,107 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain } = require('electron');
-const windowManager = require('node-window-manager').windowManager;
+const { app, BrowserWindow, desktopCapturer, ipcMain, screen } = require('electron');
+const visionAPI = require('./src/shared/vision-api');
 
 let overlayWin;
 let pickerWin;
 
-// Handle request for window list
+// ============================================================
+// Wire vision-api → overlay: when matrix changes, push to overlay
+// ============================================================
+visionAPI.setOnMatrixChange((matrix) => {
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.webContents.send('apply-matrix', matrix);
+  }
+});
+
+// ============================================================
+// IPC: Palette control (called from picker UI)
+// ============================================================
+
+ipcMain.handle('get-palettes', () => {
+  return visionAPI.getPalettes();
+});
+
+ipcMain.on('apply-palette', (event, { paletteId, intensity }) => {
+  visionAPI.applyPalette(paletteId, intensity ?? 1.0);
+});
+
+ipcMain.on('transition-palette', (event, { paletteId, intensity, duration }) => {
+  visionAPI.transitionTo(paletteId, intensity ?? 1.0, duration ?? 400);
+});
+
+ipcMain.on('apply-raw-matrix', (event, matrix) => {
+  visionAPI.applyRawMatrix(matrix);
+});
+
+ipcMain.on('reset-palette', () => {
+  visionAPI.reset();
+});
+
+// ============================================================
+// IPC: Screenshot capture for overlay mode
+// ============================================================
+
+ipcMain.on('take-screenshot-fullscreen', async (event) => {
+  const sources = await desktopCapturer.getSources({
+    types: ['screen'],
+    thumbnailSize: { width: 1920, height: 1080 }
+  });
+  if (sources.length > 0) {
+    event.reply('screenshot-ready', sources[0].thumbnail.toDataURL());
+  }
+});
+
+ipcMain.on('take-screenshot', async (event, windowInfo) => {
+  const sources = await desktopCapturer.getSources({
+    types: ['window'],
+    thumbnailSize: { width: 1920, height: 1080 }
+  });
+  const targetSource = sources.find(s => s.name === windowInfo.name);
+  if (targetSource) {
+    event.reply('screenshot-ready', targetSource.thumbnail.toDataURL());
+  }
+});
+
 ipcMain.on('get-sources', async (event) => {
   const sources = await desktopCapturer.getSources({ types: ['window'] });
   event.reply('sources-list', sources);
 });
 
-// Handle window selection
-ipcMain.on('window-selected', (event, windowInfo) => {
-  createOverlay(windowInfo);
-  pickerWin.close();
-});
-
-// handle screenshots
-ipcMain.on('take-screenshot', async (event, windowInfo) => {
-  const sources = await desktopCapturer.getSources({ 
-    types: ['window'],
-    thumbnailSize: { width: 1920, height: 1080 }
-    // thumbnailSize: { width: 800, height: 600 } 
-  });
-  const targetSource = sources.find(s => s.name === windowInfo.name);
-  
-  if (targetSource) {
-    const screenshot = targetSource.thumbnail.toDataURL();
-    event.reply('screenshot-ready', screenshot);
-  }
-});
+// ============================================================
+// Window creation
+// ============================================================
 
 app.whenReady().then(() => {
-  // Create picker window
   pickerWin = new BrowserWindow({
-    width: 500,
-    height: 400,
+    width: 520,
+    height: 650,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
     }
   });
-
   pickerWin.loadFile('picker.html');
 });
 
-function createOverlay(windowInfo) {
-  // Get actual window bounds
-  const windows = windowManager.getWindows();
-  const targetWindow = windows.find(w => w.getTitle() === windowInfo.name);
-  
-  let bounds = { x: 100, y: 100, width: 1000, height: 700 }; // fallback
-  
-  if (targetWindow) {
-    const winBounds = targetWindow.getBounds();
-    bounds = {
-      x: winBounds.x,
-      y: winBounds.y,
-      width: winBounds.width,
-      height: winBounds.height
-    };
-  }
+/**
+ * Full-screen overlay: captures entire screen, applies color matrix via SVG filter.
+ */
+function createFullScreenOverlay() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.size;
 
   overlayWin = new BrowserWindow({
+    x: 0,
+    y: 0,
+    width,
+    height,
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     hasShadow: false,
     focusable: false,
     skipTaskbar: true,
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
+    fullscreen: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
@@ -82,26 +111,38 @@ function createOverlay(windowInfo) {
   overlayWin.loadFile('overlay.html');
 
   overlayWin.webContents.on('did-finish-load', () => {
-    overlayWin.webContents.send('window-info', windowInfo);
+    overlayWin.webContents.send('start-fullscreen', { width, height });
+
+    // Push current matrix if one is already active
+    const current = visionAPI.getCurrentMatrix();
+    const isIdentity = current.every((v, i) => {
+      const row = Math.floor(i / 5), col = i % 5;
+      return Math.abs(v - (row === col ? 1 : 0)) < 0.001;
+    });
+    if (!isIdentity) {
+      overlayWin.webContents.send('apply-matrix', current);
+    }
   });
 
   overlayWin.setIgnoreMouseEvents(true, { forward: true });
-  
-  // Track window movement
-  if (targetWindow) {
-    const interval = setInterval(() => {
-      if (!overlayWin || overlayWin.isDestroyed()) {
-        clearInterval(interval);
-        return;
-      }
-      
-      const newBounds = targetWindow.getBounds();
-      overlayWin.setBounds({
-        x: newBounds.x,
-        y: newBounds.y,
-        width: newBounds.width,
-        height: newBounds.height
-      });
-    }, 100); // Update every 100ms
-  }
 }
+
+ipcMain.on('start-fullscreen-mode', () => {
+  if (!overlayWin || overlayWin.isDestroyed()) {
+    createFullScreenOverlay();
+  }
+});
+
+ipcMain.on('stop-overlay', () => {
+  visionAPI.reset();
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.close();
+    overlayWin = null;
+  }
+});
+
+app.on('before-quit', () => visionAPI.shutdown());
+app.on('window-all-closed', () => {
+  visionAPI.shutdown();
+  app.quit();
+});
