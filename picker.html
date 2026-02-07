@@ -5,311 +5,256 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      padding: 16px;
-      background: #1a1a2e;
-      color: #eee;
-      user-select: none;
+      padding: 16px; background: #1a1a2e; color: #eee; user-select: none;
     }
-
-    /* Header */
     .header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
     .header h2 { font-size: 20px; }
     .badge {
-      font-size: 10px;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
+      font-size: 10px; padding: 2px 8px; border-radius: 10px;
+      font-weight: 600; background: #10b981; color: #000;
     }
-    .badge-native { background: #10b981; color: #000; }
-    .badge-overlay { background: #f59e0b; color: #000; }
-    .subtitle { color: #888; font-size: 12px; margin-bottom: 14px; }
+    .subtitle { color: #777; font-size: 12px; margin-bottom: 14px; }
+
+    /* Mode toggle */
+    .mode-toggle {
+      display: flex; gap: 0; margin-bottom: 12px;
+      background: #2a2a40; border-radius: 8px; padding: 3px;
+    }
+    .mode-btn {
+      flex: 1; padding: 8px; border: none; border-radius: 6px;
+      font-size: 12px; font-weight: 600; cursor: pointer;
+      background: transparent; color: #666; transition: all 0.15s;
+    }
+    .mode-btn.active { background: #6c63ff; color: #fff; }
+    .mode-btn:hover:not(.active) { color: #aaa; }
 
     /* Palette grid */
     .palette-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-      margin-bottom: 12px;
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 6px; margin-bottom: 12px;
     }
     .palette-card {
-      background: #2a2a40;
-      border: 2px solid transparent;
-      border-radius: 8px;
-      padding: 8px 10px;
-      cursor: pointer;
-      transition: all 0.15s;
+      background: #2a2a40; border: 2px solid transparent;
+      border-radius: 8px; padding: 8px 10px; cursor: pointer; transition: all 0.15s;
     }
     .palette-card:hover { background: #3a3a55; }
     .palette-card.active { border-color: #6c63ff; background: #33305a; }
-    .palette-card .top { display: flex; align-items: center; gap: 6px; }
-    .palette-card .icon { font-size: 16px; }
-    .palette-card .name { font-size: 12px; font-weight: 600; }
-    .palette-card .desc { font-size: 10px; color: #777; margin-top: 2px; }
+    .top { display: flex; align-items: center; gap: 6px; }
+    .icon { font-size: 16px; } .name { font-size: 12px; font-weight: 600; }
+    .desc { font-size: 10px; color: #666; margin-top: 2px; }
     .preview { display: flex; gap: 2px; margin-top: 5px; }
-    .preview .swatch { width: 14px; height: 14px; border-radius: 3px; }
+    .swatch { width: 14px; height: 14px; border-radius: 3px; }
 
     /* Controls */
-    .controls {
-      background: #2a2a40;
-      border-radius: 8px;
-      padding: 10px 14px;
-      margin-bottom: 10px;
+    .panel {
+      background: #2a2a40; border-radius: 8px;
+      padding: 10px 14px; margin-bottom: 10px;
     }
-    .controls label {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      color: #aaa;
-      margin-bottom: 4px;
+    .panel label {
+      display: flex; justify-content: space-between;
+      font-size: 12px; color: #aaa; margin-bottom: 4px;
     }
-    .controls input[type="range"] { width: 100%; accent-color: #6c63ff; }
-    .intensity-val { color: #6c63ff; font-weight: 600; }
+    .panel input[type="range"] { width: 100%; accent-color: #6c63ff; }
+    .val { color: #6c63ff; font-weight: 600; }
 
-    /* Window picker (overlay mode only) */
-    .window-section {
-      background: #2a2a40;
-      border-radius: 8px;
-      padding: 10px 14px;
-      margin-bottom: 10px;
+    /* Window list */
+    .win-panel { display: none; }
+    .win-panel.show { display: block; }
+    .win-panel h3 {
+      font-size: 12px; color: #888; margin-bottom: 6px;
+      display: flex; justify-content: space-between; align-items: center;
     }
-    .window-section h3 { font-size: 13px; color: #aaa; margin-bottom: 6px; }
-    .window-list {
-      max-height: 140px;
-      overflow-y: auto;
+    .refresh { font-size: 11px; color: #6c63ff; cursor: pointer; background: none; border: none; font-weight: 600; }
+    .win-list { max-height: 160px; overflow-y: auto; }
+    .win-item {
+      padding: 6px 8px; font-size: 12px; border-radius: 4px;
+      cursor: pointer; margin-bottom: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      color: #ccc;
     }
-    .window-item {
-      padding: 6px 8px;
-      font-size: 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-bottom: 2px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .window-item:hover { background: #3a3a55; }
-    .window-item.active { background: #33305a; color: #a5a0ff; }
+    .win-item:hover { background: #3a3a55; }
+    .win-item.active { background: #33305a; color: #a5a0ff; }
 
     /* Buttons */
     .btn {
-      display: block; width: 100%; padding: 10px;
-      border: none; border-radius: 8px; font-size: 13px;
-      font-weight: 600; cursor: pointer; margin-bottom: 6px;
-      transition: all 0.15s;
+      display: block; width: 100%; padding: 10px; border: none;
+      border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; margin-bottom: 6px; transition: all 0.15s;
     }
-    .btn-primary { background: #6c63ff; color: #fff; }
-    .btn-primary:hover { background: #5a52e0; }
-    .btn-primary:disabled { background: #3a3a55; color: #666; cursor: not-allowed; }
-    .btn-danger { background: #ff4757; color: #fff; }
-    .btn-danger:hover { background: #e03e4d; }
-    .btn-secondary { background: #3a3a55; color: #ccc; }
-    .btn-secondary:hover { background: #4a4a65; }
+    .btn-go { background: #6c63ff; color: #fff; }
+    .btn-go:hover { background: #5a52e0; }
+    .btn-go:disabled { background: #3a3a55; color: #555; cursor: not-allowed; }
+    .btn-stop { background: #ff4757; color: #fff; display: none; }
+    .btn-stop:hover { background: #e03e4d; }
 
-    .status {
-      text-align: center;
-      font-size: 11px;
-      color: #555;
-      margin-top: 6px;
+    .status { text-align: center; font-size: 11px; color: #555; margin-top: 6px; }
+    .hint {
+      font-size: 10px; color: #444; text-align: center;
+      margin-top: 4px; font-style: italic; display: none;
     }
+    .hint.show { display: block; }
   </style>
 </head>
 <body>
 
   <div class="header">
-    <h2>🎨 ScreenTint</h2>
-    <span class="badge" id="backend-badge">...</span>
+    <h2>&#127912; ScreenTint</h2>
   </div>
-  <p class="subtitle" id="subtitle">Loading...</p>
 
+  <!-- Mode -->
+  <div class="mode-toggle">
+    <button class="mode-btn active" data-mode="fullscreen">&#128421; Full Screen</button>
+    <button class="mode-btn" data-mode="app">&#129695; Per App</button>
+  </div>
+
+  <!-- Palettes -->
   <div id="palette-grid" class="palette-grid"></div>
 
-  <div class="controls">
-    <label>Intensity <span class="intensity-val" id="intensity-val">100%</span></label>
+  <!-- Intensity -->
+  <div class="panel">
+    <label>Intensity <span class="val" id="int-val">100%</span></label>
     <input type="range" id="intensity" min="0" max="100" value="100" />
   </div>
 
-  <!-- Only shown in overlay mode -->
-  <div class="window-section" id="window-section" style="display:none">
-    <h3>🪟 Target Window</h3>
-    <div class="window-list" id="window-list">Loading...</div>
-    <button class="btn btn-secondary" id="btn-refresh" style="margin-top:6px">↻ Refresh Windows</button>
+  <!-- Window picker (app mode) -->
+  <div class="panel win-panel" id="win-panel">
+    <h3>Target App <button class="refresh" id="btn-refresh">&#x21bb; Refresh</button></h3>
+    <div class="win-list" id="win-list">Loading...</div>
   </div>
 
-  <button class="btn btn-primary" id="btn-apply" disabled>▶ Apply</button>
-  <button class="btn btn-danger" id="btn-stop" style="display:none">■ Stop / Reset</button>
+  <!-- Actions -->
+  <button class="btn btn-go" id="btn-go" disabled>&#9654; Apply</button>
+  <button class="btn btn-stop" id="btn-stop">&#9632; Stop</button>
 
   <p class="status" id="status"></p>
+  <p class="hint" id="hint">Effect auto-toggles when you switch to/from the target app</p>
 
   <script>
     const { ipcRenderer } = require('electron');
 
-    let backend = 'overlay';      // 'native' or 'overlay'
-    let activePaletteId = null;
-    let selectedWindow = null;    // overlay mode only
-    let isActive = false;
+    let mode = 'fullscreen';
+    let paletteId = null;
+    let selectedHwnd = null;
+    let selectedTitle = '';
+    let active = false;
+    let winCache = [];
 
-    // ────────────────────────────────────────────────────
-    // Init: detect backend and set up UI
-    // ────────────────────────────────────────────────────
+    // ── Init ──────────────────────────────────────────────
     async function init() {
-      backend = await ipcRenderer.invoke('get-backend');
-
-      const badge = document.getElementById('backend-badge');
-      const subtitle = document.getElementById('subtitle');
-      const winSection = document.getElementById('window-section');
-
-      if (backend === 'native') {
-        badge.textContent = 'GPU';
-        badge.className = 'badge badge-native';
-        subtitle.textContent = 'Pick a palette — applied instantly via Windows Magnification API (zero lag)';
-      } else {
-        badge.textContent = 'Overlay';
-        badge.className = 'badge badge-overlay';
-        subtitle.textContent = 'Pick a palette + target window (per-window overlay mode)';
-        winSection.style.display = 'block';
-        loadWindows();
-      }
-
       await loadPalettes();
-      updateApplyButton();
+      await loadWindows();
+      refresh();
     }
 
-    // ────────────────────────────────────────────────────
-    // Load palettes from vision-api
-    // ────────────────────────────────────────────────────
+    // ── Palettes ──────────────────────────────────────────
     async function loadPalettes() {
-      const palettes = await ipcRenderer.invoke('get-palettes');
+      const list = await ipcRenderer.invoke('get-palettes');
       const grid = document.getElementById('palette-grid');
       grid.innerHTML = '';
-
-      palettes.forEach(p => {
+      list.forEach(p => {
         if (p.id === 'custom') return;
-        const card = document.createElement('div');
-        card.className = 'palette-card';
-        card.dataset.id = p.id;
-
-        const swatches = p.previewColors
-          .map(c => `<div class="swatch" style="background:${c}"></div>`).join('');
-
-        card.innerHTML = `
-          <div class="top"><span class="icon">${p.icon}</span><span class="name">${p.name}</span></div>
+        const el = document.createElement('div');
+        el.className = 'palette-card';
+        el.dataset.id = p.id;
+        el.innerHTML = `
+          <div class="top"><span class="name">${p.name}</span></div>
           <div class="desc">${p.description}</div>
-          <div class="preview">${swatches}</div>
-        `;
-        card.addEventListener('click', () => selectPalette(p.id));
-        grid.appendChild(card);
+          <div class="preview">${p.previewColors.map(c => `<div class="swatch" style="background:${c}"></div>`).join('')}</div>`;
+        el.onclick = () => {
+          paletteId = p.id;
+          document.querySelectorAll('.palette-card').forEach(c => c.classList.toggle('active', c.dataset.id === p.id));
+          refresh();
+          if (active) liveUpdate();
+        };
+        grid.appendChild(el);
       });
     }
 
-    function selectPalette(id) {
-      activePaletteId = id;
-      document.querySelectorAll('.palette-card').forEach(c =>
-        c.classList.toggle('active', c.dataset.id === id)
-      );
-      updateApplyButton();
-
-      // If already active, live-update the palette
-      if (isActive) applyCurrentPalette();
-    }
-
-    // ────────────────────────────────────────────────────
-    // Window list (overlay mode only)
-    // ────────────────────────────────────────────────────
-    function loadWindows() {
-      ipcRenderer.send('get-sources');
-    }
-
-    ipcRenderer.on('sources-list', (_, sources) => {
-      const list = document.getElementById('window-list');
-      list.innerHTML = '';
-      sources.forEach(s => {
-        if (!s.name || s.name === 'ScreenTint') return;
+    // ── Windows ───────────────────────────────────────────
+    async function loadWindows() {
+      winCache = await ipcRenderer.invoke('get-windows');
+      const el = document.getElementById('win-list');
+      el.innerHTML = '';
+      if (!winCache.length) { el.innerHTML = '<div style="color:#555;font-size:12px">No windows found</div>'; return; }
+      winCache.forEach(w => {
         const item = document.createElement('div');
-        item.className = 'window-item';
-        item.textContent = s.name;
-        item.addEventListener('click', () => {
-          selectedWindow = { name: s.name, id: s.id };
-          document.querySelectorAll('.window-item').forEach(i => i.classList.remove('active'));
+        item.className = 'win-item';
+        item.textContent = w.title;
+        item.onclick = () => {
+          selectedHwnd = w.hwnd;
+          selectedTitle = w.title;
+          document.querySelectorAll('.win-item').forEach(i => i.classList.remove('active'));
           item.classList.add('active');
-          updateApplyButton();
-        });
-        list.appendChild(item);
-      });
-    });
-
-    document.getElementById('btn-refresh').addEventListener('click', loadWindows);
-
-    // ────────────────────────────────────────────────────
-    // Controls
-    // ────────────────────────────────────────────────────
-
-    function getIntensity() {
-      return parseInt(document.getElementById('intensity').value) / 100;
-    }
-
-    document.getElementById('intensity').addEventListener('input', (e) => {
-      document.getElementById('intensity-val').textContent = e.target.value + '%';
-      if (isActive) applyCurrentPalette();
-    });
-
-    function updateApplyButton() {
-      const btn = document.getElementById('btn-apply');
-      if (backend === 'native') {
-        btn.disabled = !activePaletteId;
-      } else {
-        btn.disabled = !activePaletteId || !selectedWindow;
-      }
-    }
-
-    function applyCurrentPalette() {
-      if (!activePaletteId) return;
-      ipcRenderer.send('transition-palette', {
-        paletteId: activePaletteId,
-        intensity: getIntensity(),
-        duration: 300,
+          refresh();
+        };
+        el.appendChild(item);
       });
     }
 
-    // ────────────────────────────────────────────────────
-    // Apply / Stop
-    // ────────────────────────────────────────────────────
+    document.getElementById('btn-refresh').onclick = loadWindows;
 
-    document.getElementById('btn-apply').addEventListener('click', () => {
-      if (!activePaletteId) return;
+    // ── Mode toggle ───────────────────────────────────────
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.onclick = () => {
+        if (active) return;
+        mode = btn.dataset.mode;
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+        document.getElementById('win-panel').classList.toggle('show', mode === 'app');
+        document.getElementById('hint').classList.toggle('show', mode === 'app');
+        refresh();
+      };
+    });
 
-      if (backend === 'native') {
-        // Native: just apply the palette. DWM handles the rest. Zero lag.
-        ipcRenderer.send('activate-native', {
-          paletteId: activePaletteId,
-          intensity: getIntensity(),
-        });
+    // ── Intensity ─────────────────────────────────────────
+    const slider = document.getElementById('intensity');
+    slider.oninput = () => {
+      document.getElementById('int-val').textContent = slider.value + '%';
+      if (active) liveUpdate();
+    };
+
+    // ── Apply / Stop ──────────────────────────────────────
+    document.getElementById('btn-go').onclick = () => {
+      if (!paletteId) return;
+      const intensity = slider.value / 100;
+
+      if (mode === 'fullscreen') {
+        ipcRenderer.send('activate-fullscreen', { paletteId, intensity });
+        setStatus('\uD83D\uDFE2 Active \u2014 full screen (GPU, zero lag)');
       } else {
-        // Overlay: start per-window overlay, then apply palette
-        if (!selectedWindow) return;
-        ipcRenderer.send('start-window-overlay', selectedWindow);
-        setTimeout(() => applyCurrentPalette(), 300);
+        if (!selectedHwnd) return;
+        ipcRenderer.send('activate-for-app', { hwnd: selectedHwnd, paletteId, intensity });
+        setStatus(`\uD83D\uDFE2 Active \u2014 "${selectedTitle}" (GPU, auto-toggle)`);
       }
+      active = true;
+      refresh();
+    };
 
-      isActive = true;
-      document.getElementById('btn-apply').style.display = 'none';
-      document.getElementById('btn-stop').style.display = 'block';
-      document.getElementById('status').textContent =
-        backend === 'native'
-          ? '🟢 Active — GPU color transform (zero lag)'
-          : `🟡 Active — overlay on "${selectedWindow.name}"`;
-    });
+    document.getElementById('btn-stop').onclick = () => {
+      ipcRenderer.send('reset');
+      active = false;
+      setStatus('Stopped');
+      refresh();
+    };
 
-    document.getElementById('btn-stop').addEventListener('click', () => {
-      ipcRenderer.send('reset-palette');
-      if (backend === 'overlay') ipcRenderer.send('stop-overlay');
-      isActive = false;
-      document.getElementById('btn-apply').style.display = 'block';
-      document.getElementById('btn-stop').style.display = 'none';
-      document.getElementById('status').textContent = 'Stopped';
-    });
+    function liveUpdate() {
+      if (!paletteId) return;
+      ipcRenderer.send('transition-palette', { paletteId, intensity: slider.value / 100, duration: 200 });
+    }
 
-    // ────────────────────────────────────────────────────
+    // ── UI refresh ────────────────────────────────────────
+    function refresh() {
+      const canGo = paletteId && (mode === 'fullscreen' || selectedHwnd);
+      document.getElementById('btn-go').disabled = !canGo || active;
+      document.getElementById('btn-go').style.display = active ? 'none' : 'block';
+      document.getElementById('btn-stop').style.display = active ? 'block' : 'none';
+      document.querySelectorAll('.mode-btn').forEach(b => {
+        b.style.opacity = active ? 0.5 : 1;
+        b.style.pointerEvents = active ? 'none' : 'auto';
+      });
+    }
+
+    function setStatus(t) { document.getElementById('status').textContent = t; }
+
     init();
   </script>
 </body>

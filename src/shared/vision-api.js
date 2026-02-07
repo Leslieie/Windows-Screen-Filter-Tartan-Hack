@@ -1,115 +1,159 @@
-// src/shared/vision-api.js — THE BRIDGE
+// src/shared/vision-api.js
 //
-// Two backends:
-//   1. NATIVE (Windows) — MagSetFullscreenColorEffect on GPU. Zero lag.
-//      No overlay window needed. Matrix applied by DWM compositor.
+// Modes:
+//   "fullscreen" — always on, affects everything
+//   "app"        — effect auto-toggles when target app is focused/unfocused
+//                  Uses the same MagSetFullscreenColorEffect under the hood
+//                  but polls GetForegroundWindow and enables/disables accordingly
 //
-//   2. OVERLAY (fallback) — Screenshot + SVG feColorMatrix.
-//      Used on non-Windows or when native addon isn't built.
-//      Per-window only (full-screen is too expensive).
-//
-// main.js doesn't care which backend — it calls the same functions.
+// Both modes = zero lag, zero CPU. Just GPU color transform.
 
 const { PALETTES, applyIntensity, getPaletteById } = require('./palettes/index');
 const { transposeMatrix, IDENTITY } = require('./matrix-ops');
 const { TransitionEngine, Easings } = require('./transition-engine');
 
-// ── Try to load native addon ────────────────────────────────────
+// ── Load native addon ───────────────────────────────────────────
 let native = null;
+let nativeReady = false;
+
 try {
   native = require('../../build/Release/screentint_native.node');
-} catch (e1) {
-  try {
-    // electron-rebuild puts it here sometimes
-    native = require('../../build/Release/screentint_native');
-  } catch (e2) {
-    native = null;
-  }
+} catch {
+  try { native = require('../../build/Release/screentint_native'); } catch { native = null; }
 }
 
-let nativeReady = false;
 if (native && native.isAvailable && native.isAvailable()) {
   try {
     nativeReady = native.init();
-    if (nativeReady) console.log('[Vision] ✓ Native Magnification API ready (zero-lag GPU mode)');
+    if (nativeReady) console.log('[Vision] Native Magnification API ready');
   } catch (e) {
     console.warn('[Vision] Native init failed:', e.message);
-    nativeReady = false;
   }
 }
-
-if (!nativeReady) {
-  console.log('[Vision] Native not available — using overlay fallback');
-}
+if (!nativeReady) console.log('[Vision] Native not available');
 
 // ── State ───────────────────────────────────────────────────────
 const transition = new TransitionEngine();
 let currentMatrix = [...IDENTITY];
-let onMatrixChange = null; // callback for overlay mode
+let mode = 'none';            // 'none' | 'fullscreen' | 'app'
+let targetHwnd = null;        // for app mode
+let focusPoller = null;       // interval for app mode
+let effectApplied = false;    // is the GPU effect currently on?
 
-// ── Apply matrix to screen ──────────────────────────────────────
-function applyToScreen(matrix) {
+// ── GPU control ─────────────────────────────────────────────────
+function gpuApply(matrix) {
+  if (!nativeReady) return;
+  native.applyMatrix(transposeMatrix(matrix));
+  effectApplied = true;
+}
+
+function gpuReset() {
+  if (!nativeReady) return;
+  native.resetMatrix();
+  effectApplied = false;
+}
+
+function pushMatrix(matrix) {
   currentMatrix = [...matrix];
-
-  if (nativeReady) {
-    // Native: transpose to row-vector convention, send to GPU
-    const transposed = transposeMatrix(matrix);
-    native.applyMatrix(transposed);
+  if (mode === 'fullscreen') {
+    gpuApply(matrix);
+  } else if (mode === 'app') {
+    // Only apply if target is focused right now
+    if (targetHwnd && nativeReady && native.isForeground(targetHwnd)) {
+      gpuApply(matrix);
+    }
   }
+}
 
-  // Always fire callback (overlay mode uses this)
-  if (onMatrixChange) onMatrixChange(matrix);
+// ── App-mode focus polling ──────────────────────────────────────
+function startFocusPoller() {
+  stopFocusPoller();
+  focusPoller = setInterval(() => {
+    if (!targetHwnd || !nativeReady) return;
+
+    const isFg = native.isForeground(targetHwnd);
+
+    if (isFg && !effectApplied) {
+      // Target just gained focus → apply
+      gpuApply(currentMatrix);
+    } else if (!isFg && effectApplied) {
+      // Target lost focus → reset
+      gpuReset();
+    }
+  }, 100); // 10 checks/sec is plenty
+}
+
+function stopFocusPoller() {
+  if (focusPoller) {
+    clearInterval(focusPoller);
+    focusPoller = null;
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════
 // PUBLIC API
 // ═════════════════════════════════════════════════════════════════
 
-function setOnMatrixChange(cb) { onMatrixChange = cb; }
-
 function applyPalette(paletteId, intensity = 1.0) {
-  const palette = getPaletteById(paletteId);
-  if (!palette) return false;
-  applyToScreen(applyIntensity(palette.matrix, intensity));
+  const p = getPaletteById(paletteId);
+  if (!p) return false;
+  pushMatrix(applyIntensity(p.matrix, intensity));
   return true;
 }
 
 function applyRawMatrix(matrix) {
   if (!Array.isArray(matrix) || matrix.length !== 25) return false;
-  applyToScreen(matrix);
+  pushMatrix(matrix);
+  return true;
+}
+
+function transitionTo(paletteId, intensity = 1.0, durationMs = 400) {
+  const p = getPaletteById(paletteId);
+  if (!p) return;
+  transition.animate({
+    from: transition.getCurrentMatrix(),
+    to: applyIntensity(p.matrix, intensity),
+    duration: durationMs,
+    easing: Easings.easeInOutCubic,
+    onFrame: (m) => pushMatrix(m),
+  });
+}
+
+// ── Mode control ────────────────────────────────────────────────
+
+function activateFullscreen() {
+  stopFocusPoller();
+  mode = 'fullscreen';
+  targetHwnd = null;
+  // Apply current matrix immediately
+  if (!isIdentity(currentMatrix)) gpuApply(currentMatrix);
+  return true;
+}
+
+function activateForApp(hwnd) {
+  if (!nativeReady) return false;
+  mode = 'app';
+  targetHwnd = hwnd;
+  startFocusPoller();
+  // If target is already focused, apply immediately
+  if (native.isForeground(hwnd) && !isIdentity(currentMatrix)) {
+    gpuApply(currentMatrix);
+  }
   return true;
 }
 
 function reset() {
   transition.cancel();
-  applyToScreen([...IDENTITY]);
-  if (nativeReady) native.reset();
-  return true;
+  stopFocusPoller();
+  gpuReset();
+  currentMatrix = [...IDENTITY];
+  mode = 'none';
+  targetHwnd = null;
 }
 
-function transitionTo(paletteId, intensity = 1.0, durationMs = 400) {
-  const palette = getPaletteById(paletteId);
-  if (!palette) return;
-  const target = applyIntensity(palette.matrix, intensity);
-
-  transition.animate({
-    from: transition.getCurrentMatrix(),
-    to: target,
-    duration: durationMs,
-    easing: Easings.easeInOutCubic,
-    onFrame: (m) => applyToScreen(m),
-  });
-}
-
-function transitionToRaw(matrix, durationMs = 400) {
-  if (!Array.isArray(matrix) || matrix.length !== 25) return;
-  transition.animate({
-    from: transition.getCurrentMatrix(),
-    to: matrix,
-    duration: durationMs,
-    easing: Easings.easeInOutCubic,
-    onFrame: (m) => applyToScreen(m),
-  });
+function getVisibleWindows() {
+  if (!nativeReady) return [];
+  return native.enumVisibleWindows();
 }
 
 function getPalettes() {
@@ -120,32 +164,27 @@ function getPalettes() {
 }
 
 function getCurrentMatrix() { return [...currentMatrix]; }
-
+function getMode() { return mode; }
 function isNativeAvailable() { return nativeReady; }
-
-/** Which backend is active */
-function getBackend() { return nativeReady ? 'native' : 'overlay'; }
 
 function shutdown() {
   transition.cancel();
-  if (nativeReady) {
-    native.reset();
-    native.shutdown();
-    nativeReady = false;
-  }
+  stopFocusPoller();
+  if (nativeReady) native.shutdown();
   currentMatrix = [...IDENTITY];
+  mode = 'none';
+}
+
+function isIdentity(m) {
+  return m.every((v, i) => {
+    const row = Math.floor(i / 5), col = i % 5;
+    return Math.abs(v - (row === col ? 1 : 0)) < 0.001;
+  });
 }
 
 module.exports = {
-  setOnMatrixChange,
-  applyPalette,
-  applyRawMatrix,
-  reset,
-  transitionTo,
-  transitionToRaw,
-  getPalettes,
-  getCurrentMatrix,
-  isNativeAvailable,
-  getBackend,
-  shutdown,
+  applyPalette, applyRawMatrix, transitionTo,
+  activateFullscreen, activateForApp, reset,
+  getVisibleWindows, getPalettes, getCurrentMatrix,
+  getMode, isNativeAvailable, shutdown,
 };
