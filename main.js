@@ -16,6 +16,21 @@ ipcMain.on('window-selected', (event, windowInfo) => {
   pickerWin.close();
 });
 
+// handle screenshots
+ipcMain.on('take-screenshot', async (event, windowInfo) => {
+  const sources = await desktopCapturer.getSources({ 
+    types: ['window'],
+    thumbnailSize: { width: 1920, height: 1080 }
+  });
+  
+  const targetSource = sources.find(s => s.name === windowInfo.name);
+  
+  if (targetSource) {
+    const screenshot = targetSource.thumbnail.toDataURL();
+    event.reply('screenshot-ready', screenshot);
+  }
+});
+
 app.whenReady().then(() => {
   // Create picker window
   pickerWin = new BrowserWindow({
@@ -65,6 +80,11 @@ function createOverlay(windowInfo) {
   });
 
   overlayWin.loadFile('overlay.html');
+
+  overlayWin.webContents.on('did-finish-load', () => {
+    overlayWin.webContents.send('window-info', windowInfo);
+  });
+
   overlayWin.setIgnoreMouseEvents(true, { forward: true });
   
   // Track window movement
