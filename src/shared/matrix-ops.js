@@ -1,18 +1,3 @@
-// src/shared/matrix-ops.js
-//
-// All matrices are 5x5, stored as flat 25-element arrays (row-major).
-// Color values are in 0.0–1.0 range.
-//
-// Convention: Matrix × ColumnVector (standard linear algebra)
-//   R' = m[0]*R + m[1]*G + m[2]*B  + m[3]*A + m[4]*1
-//   G' = m[5]*R + m[6]*G + m[7]*B  + m[8]*A + m[9]*1
-//   B' = m[10]*R + m[11]*G + m[12]*B + m[13]*A + m[14]*1
-//
-// The 5th COLUMN (indices 4, 9, 14) holds the OFFSET (translation).
-//
-// Windows Magnification API uses row-vector convention (input × M).
-// Native-bridge calls transposeMatrix() before sending to GPU.
-
 const IDENTITY = [
   1, 0, 0, 0, 0,
   0, 1, 0, 0, 0,

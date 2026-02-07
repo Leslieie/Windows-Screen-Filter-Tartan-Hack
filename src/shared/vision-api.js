@@ -1,13 +1,3 @@
-// src/shared/vision-api.js
-//
-// Modes:
-//   "fullscreen" — always on, affects everything
-//   "app"        — effect auto-toggles when target app is focused/unfocused
-//                  Uses the same MagSetFullscreenColorEffect under the hood
-//                  but polls GetForegroundWindow and enables/disables accordingly
-//
-// Both modes = zero lag, zero CPU. Just GPU color transform.
-
 const { PALETTES, applyIntensity, getPaletteById } = require('./palettes/index');
 const { transposeMatrix, IDENTITY } = require('./matrix-ops');
 const { TransitionEngine, Easings } = require('./transition-engine');
@@ -38,7 +28,7 @@ let currentMatrix = [...IDENTITY];
 let mode = 'none';            // 'none' | 'fullscreen' | 'app'
 let targetHwnd = null;        // for app mode
 let focusPoller = null;       // interval for app mode
-let effectApplied = false;    // is the GPU effect currently on?
+let effectApplied = false;    
 
 // ── GPU control ─────────────────────────────────────────────────
 function gpuApply(matrix) {
