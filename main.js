@@ -17,6 +17,11 @@ ipcMain.on('window-selected', (event, windowInfo) => {
   // pickerWin.close();
 });
 
+// Handle filter selection
+ipcMain.on('filter_select', (event, filter_type) => {
+  console.log(filter_type);
+});
+
 // handle screenshots
 ipcMain.on('take-screenshot', async (event, windowInfo) => {
   const sources = await desktopCapturer.getSources({ 

@@ -24,7 +24,20 @@
   </style>
 </head>
 <body>
+  <script>
+    function send_filter_type(type) {
+      ipcRenderer.send("filter_select", type);
+    }
+  </script>
+  <h2>Select Overlay Style</h2>
+  <div>
+    <button onclick="send_filter_type('Dark')">Dark Mode</button>
+    <button onclick="send_filter_type('Pastel')">Pastel</button>
+    <button onclick="send_filter_type('Neon')">Neon</button>
+  </div>
+
   <h2>Select Window to Overlay</h2>
+
   <div id="windows">Loading windows...</div>
   
   <script>
