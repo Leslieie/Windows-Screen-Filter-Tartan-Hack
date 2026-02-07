@@ -4,6 +4,7 @@ const windowManager = require('node-window-manager').windowManager;
 let overlayWin;
 let pickerWin;
 let trackingInterval = null;
+let filter = "None";
 
 // Handle request for window list
 ipcMain.on('get-sources', async (event) => {
@@ -19,6 +20,7 @@ ipcMain.on('window-selected', (event, windowInfo) => {
 
 // Handle filter selection
 ipcMain.on('filter_select', (event, filter_type) => {
+  filter = filter_type;
   console.log(filter_type);
 });
 
