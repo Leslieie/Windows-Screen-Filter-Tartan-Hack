@@ -7,6 +7,7 @@
       width: 100vw;
       height: 100vh;
       overflow: hidden;
+      /* background: black; */
     }
     #canvas {
       width: 100%;
@@ -36,24 +37,14 @@
         if (currentWindowInfo) {
           ipcRenderer.send('take-screenshot', currentWindowInfo);
         }
-      }, 1000); // Update 10 times per second for smooth effect
+      }, 500);
     }
 
     ipcRenderer.on('screenshot-ready', (event, imageDataUrl) => {
-      // Load image
       const img = new Image();
       img.onload = () => {
-        // Draw original image
+        // Just draw the screenshot, no effects
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
-        // Apply blur effect
-        ctx.filter = 'blur(10px)';
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        ctx.filter = 'none';
-        
-        // Add tint
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
       };
       img.src = imageDataUrl;
     });

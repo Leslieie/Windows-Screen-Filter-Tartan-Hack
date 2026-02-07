@@ -21,8 +21,8 @@ ipcMain.on('take-screenshot', async (event, windowInfo) => {
   const sources = await desktopCapturer.getSources({ 
     types: ['window'],
     thumbnailSize: { width: 1920, height: 1080 }
+    // thumbnailSize: { width: 800, height: 600 } 
   });
-  
   const targetSource = sources.find(s => s.name === windowInfo.name);
   
   if (targetSource) {
