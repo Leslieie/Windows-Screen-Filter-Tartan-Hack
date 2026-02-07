@@ -1,0 +1,14 @@
+{
+  "name": "screentint",
+  "version": "1.0.0",
+  "description": "ScreenTint — Universal Windows Theme Engine",
+  "scripts": {
+    "test": "jest --verbose",
+    "test:watch": "jest --watch --verbose",
+    "harness": "node src/shared/matrix-test-harness.js",
+    "harness:all": "node src/shared/matrix-test-harness.js --all"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0"
+  }
+}
