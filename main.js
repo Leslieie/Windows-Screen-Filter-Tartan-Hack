@@ -1,44 +1,53 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, desktopCapturer, ipcMain } = require('electron');
 
-let targetWin;
 let overlayWin;
+let pickerWin;
+
+// Handle request for window list
+ipcMain.on('get-sources', async (event) => {
+  const sources = await desktopCapturer.getSources({ types: ['window'] });
+  event.reply('sources-list', sources);
+});
+
+// Handle window selection
+ipcMain.on('window-selected', (event, windowInfo) => {
+  createOverlay(windowInfo);
+  pickerWin.close();
+});
 
 app.whenReady().then(() => {
-  targetWin = new BrowserWindow({
-    width: 800,
-    height: 600
-  });
-
-  targetWin.loadURL('https://example.com');
-
-  overlayWin = new BrowserWindow({
-    parent: targetWin,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: false,
-    hasShadow: false,
-    focusable: false,
-    skipTaskbar: true,
+  // Create picker window
+  pickerWin = new BrowserWindow({
+    width: 500,
+    height: 400,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
     }
   });
 
-  overlayWin.loadFile('index.html');
-
-  // Click-through
-  overlayWin.setIgnoreMouseEvents(true, { forward: true });
-
-  const syncOverlay = () => {
-    const bounds = targetWin.getBounds();
-    overlayWin.setBounds(bounds);
-  };
-
-  // Initial sync
-  syncOverlay();
-
-  // Keep in sync
-  targetWin.on('move', syncOverlay);
-  targetWin.on('resize', syncOverlay);
+  pickerWin.loadFile('picker.html');
+  // pickerWin.webContents.openDevTools(); // Debug console
 });
+
+function createOverlay(windowInfo) {
+  overlayWin = new BrowserWindow({
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    hasShadow: false,
+    focusable: false,
+    skipTaskbar: true,
+    x: windowInfo.x,
+    y: windowInfo.y,
+    width: windowInfo.width,
+    height: windowInfo.height,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+
+  overlayWin.loadFile('overlay.html');
+  overlayWin.setIgnoreMouseEvents(true, { forward: true });
+}
