@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { 
+      font-family: Arial; 
+      padding: 20px; 
+      background: #f5f5f5;
+    }
+    h2 { margin-top: 0; }
+    button { 
+      display: block;
+      width: 100%;
+      padding: 12px; 
+      margin: 8px 0; 
+      background: white;
+      border: 1px solid #ddd;
+      cursor: pointer;
+      text-align: left;
+      font-size: 14px;
+    }
+    button:hover { background: #e8e8e8; }
+    #windows { margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h2>Select Window to Overlay</h2>
+  <div id="windows">Loading windows...</div>
+  
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    // Request window list from main process
+    ipcRenderer.send('get-sources');
+
+    // Receive window list
+    ipcRenderer.on('sources-list', (event, sources) => {
+      const container = document.getElementById('windows');
+      container.innerHTML = '';
+      
+      if (sources.length === 0) {
+        container.innerHTML = '<p>No windows found</p>';
+        return;
+      }
+      
+      sources.forEach(source => {
+        const btn = document.createElement('button');
+        btn.textContent = source.name;
+        btn.onclick = () => {
+          // Send selected window back to main process
+          ipcRenderer.send('window-selected', {
+            name: source.name,
+            id: source.id,
+            x: 100,
+            y: 100,
+            width: 1000,
+            height: 700
+          });
+        };
+        container.appendChild(btn);
+      });
+    });
+  </script>
+</body>
+</html>

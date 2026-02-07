@@ -10,5 +10,27 @@
   },
   "devDependencies": {
     "jest": "^29.0.0"
+  "name": "tartanhacks",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "npx electron main.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shrijan-swaminathan/TartanHacks.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/shrijan-swaminathan/TartanHacks/issues"
+  },
+  "homepage": "https://github.com/shrijan-swaminathan/TartanHacks#readme",
+  "dependencies": {
+    "node-window-manager": "^2.2.4"
   }
 }
