@@ -8,6 +8,9 @@
 #ifdef _WIN32
 
 #include "window_filter.h"
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #include <magnification.h>
 #include <dwmapi.h>

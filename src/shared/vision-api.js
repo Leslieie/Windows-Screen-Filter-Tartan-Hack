@@ -1,15 +1,29 @@
 const { PALETTES, applyIntensity, getPaletteById, buildCustomPaletteMatrix } = require('./palettes/index');
 const { transposeMatrix, IDENTITY } = require('./matrix-ops');
 const { TransitionEngine, Easings } = require('./transition-engine');
+const fs = require('fs');
+const path = require('path');
 
 // ── Load native addon ───────────────────────────────────────────
 let native = null;
 let nativeReady = false;
 
-try {
-  native = require('../../build/Release/screentint_native.node');
-} catch {
-  try { native = require('../../build/Release/screentint_native'); } catch { native = null; }
+const addonCandidates = [
+  path.join(process.resourcesPath || '', 'native', 'screentint_native.node'),
+  path.join(process.resourcesPath || '', 'app.asar.unpacked', 'build', 'Release', 'screentint_native.node'),
+  path.join(__dirname, '../../build/Release/screentint_native.node'),
+  path.join(__dirname, '../../build/Release/screentint_native'),
+];
+
+for (const candidate of addonCandidates) {
+  try {
+    if (!candidate || !fs.existsSync(candidate)) continue;
+    native = require(candidate);
+    console.log('[Vision] Loaded native addon from:', candidate);
+    break;
+  } catch (e) {
+    console.warn('[Vision] Failed loading native addon from', candidate, '-', e.message);
+  }
 }
 
 if (native && native.isAvailable && native.isAvailable()) {
