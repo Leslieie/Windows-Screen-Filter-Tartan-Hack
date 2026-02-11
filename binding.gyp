@@ -2,7 +2,7 @@
   "targets": [
     {
       "target_name": "screentint_native",
-      "sources": ["module.cpp"],
+      "sources": ["module.cpp", "window_filter.cpp"],
       "include_dirs": [
         "<!@(node -p \"require('node-addon-api').include\")"
       ],
@@ -11,7 +11,7 @@
         [
           "OS=='win'",
           {
-            "libraries": ["-lmagnification.lib"]
+            "libraries": ["-lmagnification.lib", "-ldwmapi.lib"]
           }
         ]
       ]

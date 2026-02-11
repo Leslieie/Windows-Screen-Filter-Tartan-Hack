@@ -7,7 +7,7 @@ const {
   channelScaleMatrix, tintMatrix, hueRotateMatrix
 } = require('../matrix-ops');
 
-const { buildParametricDarkMode } = require('./dark-mode');
+const { buildParametricDarkMode, buildDarkDim } = require('./dark-mode');
 
 const PALETTES = [
   {
@@ -21,6 +21,15 @@ const PALETTES = [
       invertStrength: 1.0, warmth: 0.5, contrast: 0.88,
       saturation: 1.15, brightness: -0.08,
     }),
+  },
+  {
+    id: 'dark_dim',
+    name: 'Dark Dim',
+    description: 'Dims screen, preserves photos',
+    icon: '🔅',
+    category: 'essential',
+    previewColors: ['#707070', '#606060'],
+    matrix: buildDarkDim(),
   },
   {
     id: 'night_filter',
@@ -181,11 +190,23 @@ const PALETTES = [
     id: 'custom',
     name: 'Custom',
     description: 'Build your own',
+    icon: 'Ctrl',
     category: 'custom',
     previewColors: ['#9c27b0', '#e91e63', '#ff9800', '#4caf50'],
     matrix: [...IDENTITY],
   },
 ];
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function buildCustomPaletteMatrix(rgb = {}) {
+  const r = clamp(Number(rgb.r ?? 100), 0, 200) / 100;
+  const g = clamp(Number(rgb.g ?? 100), 0, 200) / 100;
+  const b = clamp(Number(rgb.b ?? 100), 0, 200) / 100;
+  return channelScaleMatrix(r, g, b);
+}
 
 function applyIntensity(matrix, intensity) {
   if (intensity <= 0) return [...IDENTITY];
@@ -197,4 +218,4 @@ function getPaletteById(id) {
   return PALETTES.find(p => p.id === id) || null;
 }
 
-module.exports = { PALETTES, applyIntensity, getPaletteById };
+module.exports = { PALETTES, applyIntensity, getPaletteById, buildCustomPaletteMatrix };

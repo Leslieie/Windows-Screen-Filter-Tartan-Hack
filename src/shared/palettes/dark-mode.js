@@ -1,7 +1,7 @@
 const {
   compose, invertMatrix, saturationMatrix, contrastMatrix,
   tintMatrix, brightnessMatrix, hueRotateMatrix,
-  lerpMatrix, IDENTITY
+  channelScaleMatrix, lerpMatrix, IDENTITY
 } = require('../matrix-ops');
 
 //  Naive Inversion 
@@ -63,10 +63,21 @@ function buildParametricDarkMode(params) {
   );
 }
 
+// No-inversion dim: darkens screen while preserving photos/images
+function buildDarkDim() {
+  return compose(
+    brightnessMatrix(-0.38),
+    contrastMatrix(0.75),
+    saturationMatrix(0.88),
+    tintMatrix(0.02, 0.01, -0.01),
+  );
+}
+
 module.exports = {
   naive,
   invertHueRotate,
   buildDarkModeMatrix,
   buildParametricDarkMode,
+  buildDarkDim,
   DEFAULT_PARAMS,
 };

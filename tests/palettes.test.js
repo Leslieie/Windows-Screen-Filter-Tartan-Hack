@@ -1,10 +1,10 @@
 // tests/palettes.test.js
-const { PALETTES, applyIntensity, getPaletteById } = require('../src/shared/palettes');
+const { PALETTES, applyIntensity, getPaletteById, buildCustomPaletteMatrix } = require('../src/shared/palettes');
 const { IDENTITY } = require('../src/shared/matrix-ops');
 const { applyMatrix, luminance, contrastRatio } = require('../src/shared/matrix-test-harness');
 
 describe('PALETTES', () => {
-  test('has 14 palettes', () => expect(PALETTES).toHaveLength(14));
+  test('has 15 palettes', () => expect(PALETTES).toHaveLength(15));
 
   test('every palette has required fields and valid matrix', () => {
     for (const p of PALETTES) {
@@ -56,6 +56,54 @@ describe('Dark Mode quality', () => {
   });
 });
 
+describe('Dark Dim quality', () => {
+  const dd = getPaletteById('dark_dim');
+
+  test('exists with correct metadata', () => {
+    expect(dd).not.toBeNull();
+    expect(dd.name).toBe('Dark Dim');
+    expect(dd.category).toBe('essential');
+  });
+
+  test('white → dimmed (lum < 0.65)', () => {
+    expect(luminance(applyMatrix(dd.matrix, [1,1,1]))).toBeLessThan(0.65);
+  });
+
+  test('white → not too dark (lum > 0.30)', () => {
+    expect(luminance(applyMatrix(dd.matrix, [1,1,1]))).toBeGreaterThan(0.30);
+  });
+
+  test('black → near black (lum < 0.05)', () => {
+    expect(luminance(applyMatrix(dd.matrix, [0,0,0]))).toBeLessThan(0.05);
+  });
+
+  test('does NOT invert — white lum > black lum', () => {
+    const wLum = luminance(applyMatrix(dd.matrix, [1,1,1]));
+    const bLum = luminance(applyMatrix(dd.matrix, [0,0,0]));
+    expect(wLum).toBeGreaterThan(bLum);
+  });
+
+  test('contrast ≥ 4:1', () => {
+    const bg = applyMatrix(dd.matrix, [1,1,1]);
+    const text = applyMatrix(dd.matrix, [0,0,0]);
+    expect(contrastRatio(bg, text)).toBeGreaterThanOrEqual(4.0);
+  });
+
+  test('blue stays blue', () => {
+    const b = applyMatrix(dd.matrix, [0, 0.47, 0.84]);
+    expect(b[2]).toBeGreaterThan(b[0]);
+    expect(b[2]).toBeGreaterThan(b[1]);
+  });
+
+  test('monotonic gray ramp (no inversion)', () => {
+    const ramp = [0, 0.25, 0.5, 0.75, 1.0];
+    const lums = ramp.map(v => luminance(applyMatrix(dd.matrix, [v, v, v])));
+    for (let i = 1; i < lums.length; i++) {
+      expect(lums[i]).toBeGreaterThanOrEqual(lums[i-1] - 0.001);
+    }
+  });
+});
+
 describe('applyIntensity', () => {
   const dm = getPaletteById('dark_mode');
 
@@ -85,6 +133,20 @@ describe('getPaletteById', () => {
   });
   test('returns null for nonexistent', () => {
     expect(getPaletteById('nonexistent')).toBeNull();
+  });
+});
+
+describe('custom palette builder', () => {
+  test('100/100/100 is identity', () => {
+    const m = buildCustomPaletteMatrix({ r: 100, g: 100, b: 100 });
+    m.forEach((v, i) => expect(v).toBeCloseTo(IDENTITY[i], 10));
+  });
+
+  test('200/100/50 scales channels independently', () => {
+    const out = applyMatrix(buildCustomPaletteMatrix({ r: 200, g: 100, b: 50 }), [0.5, 0.4, 0.8]);
+    expect(out[0]).toBeCloseTo(1.0, 10);
+    expect(out[1]).toBeCloseTo(0.4, 10);
+    expect(out[2]).toBeCloseTo(0.4, 10);
   });
 });
 describe('CMU Tartan palette', () => {

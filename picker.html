@@ -9,10 +9,6 @@
     }
     .header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
     .header h2 { font-size: 20px; }
-    .badge {
-      font-size: 10px; padding: 2px 8px; border-radius: 10px;
-      font-weight: 600; background: #10b981; color: #000;
-    }
     .subtitle { color: #777; font-size: 12px; margin-bottom: 14px; }
 
     /* Mode toggle */
@@ -55,6 +51,33 @@
       font-size: 12px; color: #aaa; margin-bottom: 4px;
     }
     .panel input[type="range"] { width: 100%; accent-color: #6c63ff; }
+    .fps-select {
+      width: 100%;
+      border: 1px solid #3a3a55;
+      border-radius: 6px;
+      background: #1e1e34;
+      color: #ddd;
+      font-size: 12px;
+      padding: 7px 8px;
+      outline: none;
+    }
+    .fps-select:focus { border-color: #6c63ff; }
+    .rgb-grid {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px 8px;
+      align-items: center;
+    }
+    .rgb-grid .row-label { font-size: 11px; color: #aaa; }
+    .rgb-grid input[type="range"] { accent-color: #6c63ff; }
+    .rgb-grid .row-val { font-size: 11px; color: #9f98ff; min-width: 40px; text-align: right; }
+    .rgb-preview {
+      margin-top: 8px;
+      height: 18px;
+      border-radius: 4px;
+      border: 1px solid #3a3a55;
+      background: #808080;
+    }
     .val { color: #6c63ff; font-weight: 600; }
 
     /* Window list */
@@ -74,6 +97,7 @@
     }
     .win-item:hover { background: #3a3a55; }
     .win-item.active { background: #33305a; color: #a5a0ff; }
+    .win-item .proc { color: #555; font-size: 10px; margin-left: 6px; }
 
     /* Buttons */
     .btn {
@@ -87,12 +111,39 @@
     .btn-stop { background: #ff4757; color: #fff; display: none; }
     .btn-stop:hover { background: #e03e4d; }
 
-    .status { text-align: center; font-size: 11px; color: #555; margin-top: 6px; }
-    .hint {
-      font-size: 10px; color: #444; text-align: center;
-      margin-top: 4px; font-style: italic; display: none;
+    /* Active filters panel */
+    .active-panel { display: none; }
+    .active-panel.show { display: block; }
+    .active-panel h3 {
+      font-size: 12px; color: #888; margin-bottom: 6px;
+      display: flex; justify-content: space-between; align-items: center;
     }
-    .hint.show { display: block; }
+    .active-item {
+      background: #1e1e34; border-radius: 6px; padding: 8px 10px;
+      margin-bottom: 6px; border-left: 3px solid #6c63ff;
+    }
+    .active-top {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+    }
+    .active-title {
+      font-size: 12px; font-weight: 600; flex: 1;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .active-palette-name { font-size: 10px; color: #6c63ff; }
+    .active-remove {
+      background: none; border: none; color: #ff4757; font-size: 16px;
+      cursor: pointer; padding: 0 4px; line-height: 1;
+    }
+    .active-remove:hover { color: #ff6b7a; }
+    .active-slider-row {
+      display: flex; align-items: center; gap: 6px;
+    }
+    .active-slider-row input[type="range"] {
+      flex: 1; accent-color: #6c63ff; height: 4px;
+    }
+    .active-slider-row .val { font-size: 10px; min-width: 30px; text-align: right; }
+
+    .status { text-align: center; font-size: 11px; color: #555; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -116,6 +167,35 @@
     <input type="range" id="intensity" min="0" max="100" value="100" />
   </div>
 
+  <!-- Per-app FPS tuning -->
+  <div class="panel">
+    <label>Per-App FPS <span class="val" id="fps-val">Auto</span></label>
+    <select id="fps-select" class="fps-select">
+      <option value="0">Auto (match monitor Hz)</option>
+      <option value="60">60 FPS</option>
+      <option value="90">90 FPS</option>
+      <option value="120">120 FPS</option>
+      <option value="144">144 FPS</option>
+    </select>
+  </div>
+
+  <!-- Custom RGB controls -->
+  <div class="panel" id="custom-panel" style="display:none">
+    <label>Custom RGB <span class="val" id="custom-rgb-label">100/100/100</span></label>
+    <div class="rgb-grid">
+      <span class="row-label">R</span>
+      <span class="row-val" id="custom-r-val">100%</span>
+      <input id="custom-r" type="range" min="0" max="200" value="100" style="grid-column: 1 / span 2;" />
+      <span class="row-label">G</span>
+      <span class="row-val" id="custom-g-val">100%</span>
+      <input id="custom-g" type="range" min="0" max="200" value="100" style="grid-column: 1 / span 2;" />
+      <span class="row-label">B</span>
+      <span class="row-val" id="custom-b-val">100%</span>
+      <input id="custom-b" type="range" min="0" max="200" value="100" style="grid-column: 1 / span 2;" />
+    </div>
+    <div id="custom-preview" class="rgb-preview"></div>
+  </div>
+
   <!-- Window picker (app mode) -->
   <div class="panel win-panel" id="win-panel">
     <h3>Target App <button class="refresh" id="btn-refresh">&#x21bb; Refresh</button></h3>
@@ -124,47 +204,61 @@
 
   <!-- Actions -->
   <button class="btn btn-go" id="btn-go" disabled>&#9654; Apply</button>
-  <button class="btn btn-stop" id="btn-stop">&#9632; Stop</button>
+  <button class="btn btn-stop" id="btn-stop" style="display:none">&#9632; Stop All</button>
+
+  <!-- Active filters panel (per-app mode) -->
+  <div class="panel active-panel" id="active-panel">
+    <h3>Active Filters</h3>
+    <div id="active-list"></div>
+  </div>
 
   <p class="status" id="status"></p>
-  <p class="hint" id="hint">Effect auto-toggles when you switch to/from the target app</p>
 
   <script>
     const { ipcRenderer } = require('electron');
 
-    let mode = 'fullscreen';
+    let uiMode = 'fullscreen';
     let paletteId = null;
     let selectedHwnd = null;
     let selectedTitle = '';
-    let active = false;
+    let selectedProcess = '';
+    let fullscreenActive = false;
     let winCache = [];
+    let palettes = [];
+    let perAppFps = 0;
+    let customRgb = { r: 100, g: 100, b: 100 };
+
+    // Active per-window filters: filterId -> { hwnd, paletteId, intensity, processName, title }
+    const activeFilters = new Map();
 
     // ── Init ──────────────────────────────────────────────
     async function init() {
-      await loadPalettes();
+      palettes = await ipcRenderer.invoke('get-palettes');
+      syncCustomRgbSettings();
+      renderPalettes();
+      await syncPerAppFpsSetting();
       await loadWindows();
       refresh();
     }
 
     // ── Palettes ──────────────────────────────────────────
-    async function loadPalettes() {
-      const list = await ipcRenderer.invoke('get-palettes');
+    function renderPalettes() {
       const grid = document.getElementById('palette-grid');
       grid.innerHTML = '';
-      list.forEach(p => {
-        if (p.id === 'custom') return;
+      palettes.forEach(p => {
         const el = document.createElement('div');
         el.className = 'palette-card';
         el.dataset.id = p.id;
         el.innerHTML = `
           <div class="top"><span class="name">${p.name}</span></div>
           <div class="desc">${p.description}</div>
-          <div class="preview">${p.previewColors.map(c => `<div class="swatch" style="background:${c}"></div>`).join('')}</div>`;
+          <div class="preview">${(p.previewColors||[]).map(c => `<div class="swatch" style="background:${c}"></div>`).join('')}</div>`;
         el.onclick = () => {
           paletteId = p.id;
           document.querySelectorAll('.palette-card').forEach(c => c.classList.toggle('active', c.dataset.id === p.id));
+          updateCustomPanelVisibility();
           refresh();
-          if (active) liveUpdate();
+          if (fullscreenActive && uiMode === 'fullscreen') liveUpdateFullscreen();
         };
         grid.appendChild(el);
       });
@@ -179,10 +273,13 @@
       winCache.forEach(w => {
         const item = document.createElement('div');
         item.className = 'win-item';
-        item.textContent = w.title;
+        const label = w.displayName || w.title;
+        const sub = (w.displayName && w.displayName !== w.title) ? w.title : w.processName || '';
+        item.innerHTML = label + (sub ? '<span class="proc">' + sub + '</span>' : '');
         item.onclick = () => {
           selectedHwnd = w.hwnd;
-          selectedTitle = w.title;
+          selectedTitle = w.displayName || w.title;
+          selectedProcess = w.processName || '';
           document.querySelectorAll('.win-item').forEach(i => i.classList.remove('active'));
           item.classList.add('active');
           refresh();
@@ -196,11 +293,9 @@
     // ── Mode toggle ───────────────────────────────────────
     document.querySelectorAll('.mode-btn').forEach(btn => {
       btn.onclick = () => {
-        if (active) return;
-        mode = btn.dataset.mode;
+        uiMode = btn.dataset.mode;
         document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b === btn));
-        document.getElementById('win-panel').classList.toggle('show', mode === 'app');
-        document.getElementById('hint').classList.toggle('show', mode === 'app');
+        document.getElementById('win-panel').classList.toggle('show', uiMode === 'app');
         refresh();
       };
     });
@@ -209,48 +304,241 @@
     const slider = document.getElementById('intensity');
     slider.oninput = () => {
       document.getElementById('int-val').textContent = slider.value + '%';
-      if (active) liveUpdate();
+      if (fullscreenActive && uiMode === 'fullscreen') liveUpdateFullscreen();
+    };
+    ['r', 'g', 'b'].forEach(ch => {
+      document.getElementById(`custom-${ch}`).oninput = () => {
+        customRgb[ch] = normalizeRgbValue(document.getElementById(`custom-${ch}`).value);
+        updateCustomPreview();
+        localStorage.setItem('customRgb', JSON.stringify(getCustomRgbPayload()));
+        if (paletteId === 'custom' && fullscreenActive && uiMode === 'fullscreen') {
+          liveUpdateFullscreen();
+        } else if (paletteId === 'custom' && uiMode === 'app' && selectedHwnd) {
+          const active = findActiveFilterByHwnd(selectedHwnd);
+          if (active) {
+            active.customRgb = { ...getCustomRgbPayload() };
+            ipcRenderer.send('update-per-window-filter', {
+              filterId: active.filterId,
+              paletteId: active.paletteId,
+              intensity: active.intensity,
+              customRgb: active.customRgb,
+            });
+          }
+        }
+      };
+    });
+
+    const fpsSelect = document.getElementById('fps-select');
+    fpsSelect.onchange = async () => {
+      const requested = Number(fpsSelect.value);
+      perAppFps = await ipcRenderer.invoke('set-per-app-fps', requested);
+      localStorage.setItem('perAppFps', String(perAppFps));
+      document.getElementById('fps-val').textContent = formatFpsLabel(perAppFps);
+      setStatus(perAppFps > 0
+        ? `Per-app FPS set to ${perAppFps}`
+        : 'Per-app FPS set to Auto');
     };
 
-    // ── Apply / Stop ──────────────────────────────────────
-    document.getElementById('btn-go').onclick = () => {
+    function formatFpsLabel(fps) {
+      return fps > 0 ? `${fps} FPS` : 'Auto';
+    }
+
+    async function syncPerAppFpsSetting() {
+      const saved = Number(localStorage.getItem('perAppFps'));
+      if (Number.isFinite(saved)) {
+        perAppFps = await ipcRenderer.invoke('set-per-app-fps', saved);
+      } else {
+        perAppFps = await ipcRenderer.invoke('get-per-app-fps');
+      }
+      fpsSelect.value = String(perAppFps);
+      document.getElementById('fps-val').textContent = formatFpsLabel(perAppFps);
+    }
+
+    function normalizeRgbValue(v) {
+      return Math.max(0, Math.min(200, Math.round(Number(v) || 100)));
+    }
+
+    function getCustomRgbPayload() {
+      return {
+        r: normalizeRgbValue(customRgb.r),
+        g: normalizeRgbValue(customRgb.g),
+        b: normalizeRgbValue(customRgb.b),
+      };
+    }
+
+    function updateCustomPreview() {
+      const rgb = getCustomRgbPayload();
+      document.getElementById('custom-r-val').textContent = rgb.r + '%';
+      document.getElementById('custom-g-val').textContent = rgb.g + '%';
+      document.getElementById('custom-b-val').textContent = rgb.b + '%';
+      document.getElementById('custom-rgb-label').textContent = `${rgb.r}/${rgb.g}/${rgb.b}`;
+      const color = `rgb(${Math.round((rgb.r / 200) * 255)}, ${Math.round((rgb.g / 200) * 255)}, ${Math.round((rgb.b / 200) * 255)})`;
+      document.getElementById('custom-preview').style.background = color;
+    }
+
+    function updateCustomPanelVisibility() {
+      const show = paletteId === 'custom';
+      document.getElementById('custom-panel').style.display = show ? 'block' : 'none';
+    }
+
+    function syncCustomRgbSettings() {
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem('customRgb') || '{}'); } catch { saved = {}; }
+      customRgb = {
+        r: normalizeRgbValue(saved.r),
+        g: normalizeRgbValue(saved.g),
+        b: normalizeRgbValue(saved.b),
+      };
+      document.getElementById('custom-r').value = customRgb.r;
+      document.getElementById('custom-g').value = customRgb.g;
+      document.getElementById('custom-b').value = customRgb.b;
+      updateCustomPreview();
+      updateCustomPanelVisibility();
+    }
+
+    // ── Apply ─────────────────────────────────────────────
+    document.getElementById('btn-go').onclick = async () => {
       if (!paletteId) return;
       const intensity = slider.value / 100;
+      const maybeCustomRgb = paletteId === 'custom' ? getCustomRgbPayload() : null;
 
-      if (mode === 'fullscreen') {
-        ipcRenderer.send('activate-fullscreen', { paletteId, intensity });
-        setStatus('\uD83D\uDFE2 Active \u2014 full screen (GPU, zero lag)');
+      if (uiMode === 'fullscreen') {
+        ipcRenderer.send('activate-fullscreen', { paletteId, intensity, customRgb: maybeCustomRgb });
+        fullscreenActive = true;
+        activeFilters.clear();
+        setStatus('\uD83D\uDFE2 Active \u2014 full screen (GPU)');
       } else {
         if (!selectedHwnd) return;
-        ipcRenderer.send('activate-for-app', { hwnd: selectedHwnd, paletteId, intensity });
-        setStatus(`\uD83D\uDFE2 Active \u2014 "${selectedTitle}" (GPU, auto-toggle)`);
+        const filterId = await ipcRenderer.invoke('apply-per-window-filter', {
+          hwnd: selectedHwnd, paletteId, intensity,
+          processName: selectedProcess, title: selectedTitle,
+          customRgb: maybeCustomRgb,
+        });
+        if (filterId && filterId > 0) {
+          for (const [id, f] of [...activeFilters.entries()]) {
+            if (f.hwnd === selectedHwnd && id !== filterId) activeFilters.delete(id);
+          }
+          activeFilters.set(filterId, {
+            hwnd: selectedHwnd, paletteId, intensity,
+            processName: selectedProcess, title: selectedTitle,
+            customRgb: maybeCustomRgb ? { ...maybeCustomRgb } : null,
+          });
+          setStatus('\uD83D\uDFE2 Filter applied to "' + selectedTitle + '"');
+        } else {
+          setStatus('\u274C Failed to create filter');
+        }
       }
-      active = true;
       refresh();
     };
 
+    // ── Stop All ──────────────────────────────────────────
     document.getElementById('btn-stop').onclick = () => {
       ipcRenderer.send('reset');
-      active = false;
+      fullscreenActive = false;
+      activeFilters.clear();
       setStatus('Stopped');
       refresh();
     };
 
-    function liveUpdate() {
+    // ── Remove single filter ──────────────────────────────
+    function removeFilter(filterId) {
+      ipcRenderer.send('remove-per-window-filter', { filterId });
+      activeFilters.delete(filterId);
+      if (activeFilters.size === 0) setStatus('');
+      refresh();
+    }
+
+    // ── Update single filter intensity ────────────────────
+    function updateFilterIntensity(filterId, intensity) {
+      const f = activeFilters.get(filterId);
+      if (!f) return;
+      f.intensity = intensity;
+      ipcRenderer.send('update-per-window-filter', {
+        filterId, paletteId: f.paletteId, intensity, customRgb: f.customRgb || null,
+      });
+    }
+
+    function findActiveFilterByHwnd(hwnd) {
+      for (const [filterId, f] of activeFilters) {
+        if (f.hwnd === hwnd) return { filterId, ...f };
+      }
+      return null;
+    }
+
+    // ── Fullscreen live update ────────────────────────────
+    function liveUpdateFullscreen() {
       if (!paletteId) return;
-      ipcRenderer.send('transition-palette', { paletteId, intensity: slider.value / 100, duration: 200 });
+      ipcRenderer.send('transition-palette', {
+        paletteId,
+        intensity: slider.value / 100,
+        duration: 200,
+        customRgb: paletteId === 'custom' ? getCustomRgbPayload() : null,
+      });
+    }
+
+    // ── Render active filters list ────────────────────────
+    function renderActiveFilters() {
+      const panel = document.getElementById('active-panel');
+      const list = document.getElementById('active-list');
+
+      if (activeFilters.size === 0) {
+        panel.classList.remove('show');
+        return;
+      }
+      panel.classList.add('show');
+      list.innerHTML = '';
+
+      const palMap = {};
+      palettes.forEach(p => { palMap[p.id] = p.name; });
+
+      for (const [filterId, f] of activeFilters) {
+        const item = document.createElement('div');
+        item.className = 'active-item';
+        const pct = Math.round(f.intensity * 100);
+        item.innerHTML = `
+          <div class="active-top">
+            <span class="active-title">${f.title || f.processName}</span>
+            <span class="active-palette-name">${palMap[f.paletteId] || f.paletteId}</span>
+            <button class="active-remove" data-id="${filterId}">&times;</button>
+          </div>
+          <div class="active-slider-row">
+            <input type="range" min="0" max="100" value="${pct}" data-id="${filterId}" />
+            <span class="val">${pct}%</span>
+          </div>`;
+        // Remove button
+        item.querySelector('.active-remove').onclick = () => removeFilter(filterId);
+        // Intensity slider
+        const sl = item.querySelector('input[type="range"]');
+        const valSpan = item.querySelector('.active-slider-row .val');
+        sl.oninput = () => {
+          const v = sl.value / 100;
+          valSpan.textContent = sl.value + '%';
+          updateFilterIntensity(filterId, v);
+        };
+        list.appendChild(item);
+      }
     }
 
     // ── UI refresh ────────────────────────────────────────
     function refresh() {
-      const canGo = paletteId && (mode === 'fullscreen' || selectedHwnd);
-      document.getElementById('btn-go').disabled = !canGo || active;
-      document.getElementById('btn-go').style.display = active ? 'none' : 'block';
-      document.getElementById('btn-stop').style.display = active ? 'block' : 'none';
+      const hasActive = fullscreenActive || activeFilters.size > 0;
+      const canGo = paletteId && (uiMode === 'fullscreen' || selectedHwnd);
+
+      // In app mode, always allow apply (multi-filter); in fullscreen, disable while active
+      const goDisabled = !canGo || (uiMode === 'fullscreen' && fullscreenActive);
+      document.getElementById('btn-go').disabled = goDisabled;
+      document.getElementById('btn-go').textContent = uiMode === 'app'
+        ? '\u25B6 Apply to App' : '\u25B6 Apply';
+      document.getElementById('btn-stop').style.display = hasActive ? 'block' : 'none';
+
+      // Mode buttons: disable if fullscreen is active
       document.querySelectorAll('.mode-btn').forEach(b => {
-        b.style.opacity = active ? 0.5 : 1;
-        b.style.pointerEvents = active ? 'none' : 'auto';
+        b.style.opacity = fullscreenActive ? 0.5 : 1;
+        b.style.pointerEvents = fullscreenActive ? 'none' : 'auto';
       });
+
+      updateCustomPanelVisibility();
+      renderActiveFilters();
     }
 
     function setStatus(t) { document.getElementById('status').textContent = t; }
