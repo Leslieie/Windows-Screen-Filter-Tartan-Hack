@@ -52,8 +52,8 @@ Silent install switch (NSIS): `/S`
 |---|---:|
 | Installation successful | `0` |
 | Installation cancelled by user | `2` |
-| Application already exists | `0` |
-| Installation already in progress | `1223` |
+| Application already exists | `1638` |
+| Installation already in progress | `1618` |
 | Disk space is full | `112` |
 | Reboot required | `3010` |
 | Network failure | `12029` |
@@ -62,4 +62,4 @@ Silent install switch (NSIS): `/S`
 
 Notes:
 - NSIS/electron installs can collapse many failures to `1`.
-- “Application already exists” is typically treated as success/upgrade and returns `0`.
+- These values are unique for portal validation and classification.
