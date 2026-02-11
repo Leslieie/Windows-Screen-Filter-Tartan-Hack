@@ -11,10 +11,7 @@ npm run build:native
 npm start
 ```
 
-## Rebuild native addon (after C++ changes)
-```bash
-npm run build:native
-```
+
 
 ## Package as `.exe` installer (Windows)
 This project does not yet include a packager. Fastest path is `electron-builder`:
