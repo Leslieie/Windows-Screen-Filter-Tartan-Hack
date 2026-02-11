@@ -4,6 +4,19 @@ const fs = require('fs');
 const visionAPI = require('./src/shared/vision-api');
 
 let pickerWin = null;
+const APP_USER_MODEL_ID = 'com.screentint.app';
+
+function resolveAppIconPath() {
+  const candidates = [
+    path.join(__dirname, 'Icon.ico'),
+    path.join(process.resourcesPath || '', 'Icon.ico'),
+    path.join(process.resourcesPath || '', 'app.asar', 'Icon.ico'),
+  ];
+  for (const p of candidates) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return undefined;
+}
 
 // ── Profile persistence ─────────────────────────────────────────
 const profilePath = () => path.join(app.getPath('userData'), 'filter-profiles.json');
@@ -63,8 +76,11 @@ ipcMain.handle('save-filter-profiles', (_, profiles) => {
 
 // ── App lifecycle ────────────────────────────────────────────────
 app.whenReady().then(() => {
+  app.setAppUserModelId(APP_USER_MODEL_ID);
+  const iconPath = resolveAppIconPath();
   pickerWin = new BrowserWindow({
     width: 540, height: 820,
+    icon: iconPath,
     webPreferences: { nodeIntegration: true, contextIsolation: false },
   });
   pickerWin.loadFile('picker.html');

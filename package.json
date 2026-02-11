@@ -38,11 +38,24 @@
       {
         "from": "build/Release/screentint_native.node",
         "to": "native/screentint_native.node"
+      },
+      {
+        "from": "Icon.ico",
+        "to": "Icon.ico"
       }
     ],
     "win": {
       "target": "nsis",
+      "icon": "Icon.ico",
       "signAndEditExecutable": false
+    },
+    "nsis": {
+      "include": "build/installer.nsh",
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": false,
+      "installerIcon": "Icon.ico",
+      "uninstallerIcon": "Icon.ico",
+      "installerHeaderIcon": "Icon.ico"
     }
   }
 }
